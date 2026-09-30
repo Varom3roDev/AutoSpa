@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Sparkles, CalendarCheck, Truck, Check, MapPin, Clock, Phone, Mail, MessageCircle } from 'lucide-react';
+import { Sparkles, CalendarCheck, Truck, Check, MapPin, Clock, Phone, Mail, MessageCircle, Droplets, ShieldCheck, Zap, Star } from 'lucide-react';
 import { SERVICES, SERVICE_ZONES } from '@/lib/data/mock-data';
 import type { Service, ServiceZone } from '@/lib/types';
 
@@ -35,31 +35,72 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-20 pb-20 px-4 md:px-6 lg:px-8 overflow-hidden border-b border-[#2B313A]">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#d5ae33]/10 rounded-full blur-3xl pointer-events-none"></div>
+      {/* Hero Section with Cinematic Background Video */}
+      <section className="relative min-h-[85vh] lg:min-h-[90vh] flex items-center justify-center pt-24 pb-20 px-4 md:px-6 lg:px-8 overflow-hidden border-b border-[#2B313A]">
+        {/* Background Video Layer */}
+        <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            poster="/hero-carwash-poster.jpg"
+            className="w-full h-full object-cover object-center scale-105 filter brightness-[0.65] contrast-[1.1] transition-opacity duration-1000"
+          >
+            <source src="/hero-carwash.mp4" type="video/mp4" />
+          </video>
+          
+          {/* Deep Cinematic Gradients & Vignette for Maximum Text Legibility */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E11] via-[#0B0E11]/75 to-[#0B0E11]/85"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(11,14,17,0.7)_70%,rgba(11,14,17,0.95)_100%)]"></div>
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#d5ae33]/15 rounded-full blur-[120px]"></div>
+        </div>
+
+        {/* Foreground Content */}
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#181A20] border border-[#d5ae33]/30 text-xs font-semibold text-[#d5ae33] mb-6">
-            <span className="w-2 h-2 rounded-full bg-[#d5ae33] animate-pulse"></span>
-            Servicio Premium a Domicilio en Caracas
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#181A20]/80 backdrop-blur-md border border-[#d5ae33]/40 text-xs md:text-sm font-semibold text-[#d5ae33] mb-8 shadow-[0_0_20px_rgba(213,174,51,0.2)]">
+            <span className="w-2 h-2 rounded-full bg-[#d5ae33] animate-ping"></span>
+            <Sparkles size={14} className="text-[#d5ae33]" />
+            Car Detailing & Lavado Ecológico en Caracas
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
-            <span className="gold-gradient-text">Tu auto impecable,</span> donde tú estés
+
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white mb-6 leading-[1.1] drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
+            <span className="gold-gradient-text drop-shadow-[0_4px_25px_rgba(213,174,51,0.35)]">Tu auto impecable,</span>
+            <br className="hidden sm:inline" /> donde tú estés
           </h1>
-          <p className="text-base md:text-xl text-[#848E9C] max-w-2xl mx-auto mb-10">
-            Lavado profesional de vehículos a domicilio. Reserva en minutos, paga en línea o al finalizar y disfruta tu tiempo libre.
+
+          <p className="text-base sm:text-lg md:text-xl text-[#A0ABBA] max-w-2xl mx-auto mb-10 leading-relaxed drop-shadow-md">
+            Servicio profesional de detailing a domicilio con equipos autónomos de bajo impacto ambiental. Reserva en 1 minuto y disfruta tu tiempo libre.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/client/booking">
-              <Button size="lg" className="w-full sm:w-auto text-base font-extrabold px-8 h-13 rounded-full bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] shadow-lg gold-glow">
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-14">
+            <Link href="/client/booking" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto text-base font-extrabold px-9 h-14 rounded-full bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] shadow-[0_8px_25px_rgba(213,174,51,0.4)] gold-glow transition-all hover:scale-105 active:scale-95">
+                <CalendarCheck className="mr-2" size={20} />
                 Reservar Lavado Ahora
               </Button>
             </Link>
-            <Link href="#servicios">
-              <Button variant="outline" size="lg" className="w-full sm:w-auto text-base font-semibold px-8 h-13 rounded-full border-[#2B313A] bg-[#181A20] text-white hover:bg-[#1E2329] hover:border-[#d5ae33]/40">
-                Ver Catálogo de Servicios
+            <Link href="#servicios" className="w-full sm:w-auto">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto text-base font-semibold px-8 h-14 rounded-full border-[#2B313A]/90 bg-[#181A20]/80 backdrop-blur-md text-white hover:bg-[#1E2329] hover:border-[#d5ae33]/50 transition-all hover:scale-105">
+                Ver Catálogo y Precios
               </Button>
             </Link>
+          </div>
+
+          {/* Luxury Highlights Badges */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto pt-4 border-t border-[#2B313A]/60">
+            <div className="flex items-center justify-center gap-2.5 px-3 py-2 rounded-xl bg-[#12161C]/60 backdrop-blur-sm border border-[#2B313A]/40 text-xs text-[#C5CBD5]">
+              <Droplets size={16} className="text-[#3888FF] shrink-0" />
+              <span>Ahorro del 80% de agua</span>
+            </div>
+            <div className="flex items-center justify-center gap-2.5 px-3 py-2 rounded-xl bg-[#12161C]/60 backdrop-blur-sm border border-[#2B313A]/40 text-xs text-[#C5CBD5]">
+              <Zap size={16} className="text-[#d5ae33] shrink-0" />
+              <span>Equipos 100% autónomos</span>
+            </div>
+            <div className="flex items-center justify-center gap-2.5 px-3 py-2 rounded-xl bg-[#12161C]/60 backdrop-blur-sm border border-[#2B313A]/40 text-xs text-[#C5CBD5]">
+              <ShieldCheck size={16} className="text-[#0ECB81] shrink-0" />
+              <span>Garantía de Satisfacción</span>
+            </div>
           </div>
         </div>
       </section>
