@@ -2,12 +2,15 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
+import { fetchLatestBcvRate, shouldRefreshBcvRate } from '@/lib/bcv';
+
+export const dynamic = 'force-dynamic';
 
 const SETTINGS_FILE = path.join(process.cwd(), '.app_settings.json');
 
 const DEFAULT_SETTINGS = {
   id: 'default',
-  bcv_exchange_rate: 36.5,
+  bcv_exchange_rate: 859.06,
   bcv_rate_mode: 'auto_b',
   bcv_last_synced_at: null,
   bcv_fecha_valor: null,
@@ -39,7 +42,9 @@ function writeLocalSettings(data: any) {
 
 export async function GET() {
   try {
-    // 1. Try Supabase if table exists
+    let settings: any = null;
+
+    // 1. Intentar leer de Supabase
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -48,14 +53,55 @@ export async function GET() {
         const client = createClient(supabaseUrl, supabaseKey);
         const { data, error } = await client.from('app_settings').select('*').eq('id', 'default').single();
         if (!error && data) {
+          settings = data;
           writeLocalSettings(data);
-          return NextResponse.json(data);
         }
       } catch {}
     }
 
-    // 2. Fallback to server local file (synced for all devices in local network)
-    const settings = readLocalSettings();
+    // 2. Si no se obtuvo de Supabase, leer del archivo local
+    if (!settings) {
+      settings = readLocalSettings();
+    }
+
+    // 3. AUTO-ACTUALIZACIÓN CONTINUA DESATENDIDA:
+    // Si está en 'auto_b' y toca refrescar (tiempo transcurrido o cambio de hora de cierre BCV)
+    if (shouldRefreshBcvRate(settings.bcv_last_synced_at, settings.bcv_rate_mode)) {
+      try {
+        const syncResult = await fetchLatestBcvRate();
+        if (syncResult.success && syncResult.rate) {
+          settings.bcv_exchange_rate = syncResult.rate;
+          settings.bcv_last_synced_at = syncResult.timestamp || new Date().toISOString();
+          settings.bcv_fecha_valor = syncResult.fecha_valor;
+          settings.updated_at = new Date().toISOString();
+
+          // Guardar local
+          writeLocalSettings(settings);
+
+          // Guardar en Supabase en segundo plano si está disponible
+          if (supabaseUrl && supabaseKey) {
+            try {
+              const client = createClient(supabaseUrl, supabaseKey);
+              await client.from('app_settings').upsert({
+                id: 'default',
+                bcv_exchange_rate: settings.bcv_exchange_rate,
+                bcv_rate_mode: settings.bcv_rate_mode,
+                bcv_last_synced_at: settings.bcv_last_synced_at,
+                bcv_fecha_valor: settings.bcv_fecha_valor,
+                home_banner_title: settings.home_banner_title,
+                home_banner_text: settings.home_banner_text,
+                support_whatsapp: settings.support_whatsapp,
+                updated_at: settings.updated_at,
+              });
+            } catch {}
+          }
+        }
+      } catch (syncErr) {
+        // En caso de corte momentáneo de internet, no bloquea: continúa usando la tasa previa
+        console.warn('Auto-sync BCV failed, preserving existing rate:', syncErr);
+      }
+    }
+
     return NextResponse.json(settings);
   } catch (err) {
     return NextResponse.json(DEFAULT_SETTINGS);
@@ -79,10 +125,10 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Save in server local storage for multi-device sync across LAN
+    // 1. Guardar local
     writeLocalSettings(merged);
 
-    // 2. Try Supabase
+    // 2. Guardar en Supabase
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (supabaseUrl && supabaseKey) {

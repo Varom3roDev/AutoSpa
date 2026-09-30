@@ -1,8 +1,11 @@
 {
   "id": "default",
-  "bcv_exchange_rate": 854.4,
+  "bcv_exchange_rate": 859.0629,
+  "bcv_rate_mode": "auto_b",
+  "bcv_last_synced_at": "2026-09-30T18:05:17.579Z",
+  "bcv_fecha_valor": "2026-09-30T00:00:00-04:00",
   "home_banner_title": "Lavado ecológico y premium",
   "home_banner_text": "Ahorramos hasta 200L de agua por servicio en Caracas",
   "support_whatsapp": "+58 424 1979461",
-  "updated_at": "2026-09-30T15:44:26.780Z"
+  "updated_at": "2026-09-30T18:05:17.580Z"
 }
