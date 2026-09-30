@@ -11,23 +11,25 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-[#0B0E11] text-[#EAECEF]">
       {/* Top Navbar */}
-      <nav className="sticky top-0 z-40 bg-[#0B0E11]/90 backdrop-blur-md border-b border-[#2B313A] px-4 md:px-8 py-3.5">
+      <nav className="sticky top-0 z-40 bg-[#0B0E11]/75 backdrop-blur-xl border-b border-[#2B313A]/60 px-4 md:px-8 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="relative group flex items-center py-1">
+            {/* Ambient Gold Glow Halo behind logo */}
+            <div className="absolute inset-0 w-36 h-12 bg-[#d5ae33]/20 rounded-full blur-xl group-hover:bg-[#d5ae33]/30 transition-all pointer-events-none -left-2"></div>
             <img 
               src="/logo.png" 
               alt="AutoSpa VZLA" 
-              className="h-12 md:h-14 w-auto object-contain drop-shadow-[0_4px_14px_rgba(213,174,51,0.35)] transition-transform hover:scale-105" 
+              className="relative z-10 h-14 md:h-16 lg:h-17 w-auto object-contain brightness-[1.1] contrast-[1.15] drop-shadow-[0_2px_14px_rgba(213,174,51,0.55)] drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] transition-all duration-300 group-hover:scale-105 group-hover:drop-shadow-[0_4px_22px_rgba(213,174,51,0.75)]" 
             />
           </Link>
           <div className="flex items-center gap-3">
             <Link href="/login">
-              <Button variant="ghost" size="sm" className="text-sm text-[#848E9C] hover:text-white hover:bg-[#1E2329]">
+              <Button variant="ghost" size="sm" className="text-sm text-[#848E9C] hover:text-white hover:bg-[#1E2329] transition-colors">
                 Iniciar Sesión
               </Button>
             </Link>
             <Link href="/client/booking">
-              <Button size="sm" className="bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] font-bold shadow-md gold-glow">
+              <Button size="sm" className="bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] font-extrabold shadow-md gold-glow px-5 py-2 rounded-full transition-all hover:scale-105">
                 Reservar Cita
               </Button>
             </Link>
