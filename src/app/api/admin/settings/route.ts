@@ -8,6 +8,9 @@ const SETTINGS_FILE = path.join(process.cwd(), '.app_settings.json');
 const DEFAULT_SETTINGS = {
   id: 'default',
   bcv_exchange_rate: 36.5,
+  bcv_rate_mode: 'auto_b',
+  bcv_last_synced_at: null,
+  bcv_fecha_valor: null,
   home_banner_title: 'Lavado ecológico y premium',
   home_banner_text: 'Ahorramos hasta 200L de agua por servicio en Caracas',
   support_whatsapp: '+58 416 6315114',
@@ -70,6 +73,9 @@ export async function POST(req: Request) {
       bcv_exchange_rate: typeof body.bcv_exchange_rate === 'number' 
         ? body.bcv_exchange_rate 
         : parseFloat(String(body.bcv_exchange_rate).replace(',', '.')) || current.bcv_exchange_rate,
+      bcv_rate_mode: body.bcv_rate_mode || current.bcv_rate_mode || 'auto_b',
+      bcv_last_synced_at: body.bcv_last_synced_at ?? current.bcv_last_synced_at,
+      bcv_fecha_valor: body.bcv_fecha_valor ?? current.bcv_fecha_valor,
       updated_at: new Date().toISOString(),
     };
 
@@ -85,6 +91,9 @@ export async function POST(req: Request) {
         await client.from('app_settings').upsert({
           id: 'default',
           bcv_exchange_rate: merged.bcv_exchange_rate,
+          bcv_rate_mode: merged.bcv_rate_mode,
+          bcv_last_synced_at: merged.bcv_last_synced_at,
+          bcv_fecha_valor: merged.bcv_fecha_valor,
           home_banner_title: merged.home_banner_title,
           home_banner_text: merged.home_banner_text,
           support_whatsapp: merged.support_whatsapp,

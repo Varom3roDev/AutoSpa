@@ -35,6 +35,9 @@ export interface BusinessSettings {
 export interface AppSettings {
   id: string;
   bcv_exchange_rate: number;
+  bcv_rate_mode?: 'auto_b' | 'manual';
+  bcv_last_synced_at?: string;
+  bcv_fecha_valor?: string;
   home_banner_title: string;
   home_banner_text: string;
   support_whatsapp: string;

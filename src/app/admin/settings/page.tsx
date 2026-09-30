@@ -20,6 +20,8 @@ import {
   AlertCircle,
   Droplets,
   Sparkles,
+  RefreshCw,
+  Bot,
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
@@ -34,6 +36,40 @@ export default function AdminSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSyncingBCV, setIsSyncingBCV] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const handleSyncBCV = async () => {
+    setIsSyncingBCV(true);
+    setSyncFeedback(null);
+    try {
+      const res = await fetch('/api/admin/bcv/sync');
+      const data = await res.json();
+      if (data.success && data.rate) {
+        const newRate = Number(data.rate);
+        const updatedSettings: AppSettings = {
+          ...settings,
+          bcv_exchange_rate: newRate,
+          bcv_rate_mode: 'auto_b',
+          bcv_last_synced_at: new Date().toISOString(),
+          bcv_fecha_valor: data.fecha_valor || '',
+        };
+        setSettings(updatedSettings);
+        await updateAppSettings(updatedSettings);
+        setSyncFeedback(`Sincronizado con éxito: Bs. ${newRate.toFixed(2)} (${data.source})`);
+        setSaveSuccess(true);
+        playAudioChime('subtle');
+        setTimeout(() => setSaveSuccess(false), 4500);
+      } else {
+        setSyncFeedback(data.error || "No se pudo sincronizar la tasa");
+      }
+    } catch {
+      setSyncFeedback("Error de conexión al sincronizar con BCV");
+    } finally {
+      setIsSyncingBCV(false);
+      setTimeout(() => setSyncFeedback(null), 6000);
+    }
+  };
 
   useEffect(() => {
     async function loadSettings() {
@@ -133,31 +169,114 @@ export default function AdminSettingsPage() {
           </div>
         )}
 
-        {/* BCV Exchange Rate */}
-        <Card>
+        {/* BCV Exchange Rate - Modalidad B y Manual */}
+        <Card className="border border-border/80 shadow-md">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-md bg-primary/10 text-primary">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
                   <DollarSign className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">Tasa de Cambio BCV</CardTitle>
-                  <CardDescription className="text-xs">
-                    Conversión automática de montos en dólares a Bolívares (VES)
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <span>Tasa de Cambio BCV</span>
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                      Modalidad B (Fecha Valor)
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    Conversión de reservas en dólares a Bolívares usando la tasa oficial de cierre
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant="outline" className="font-mono">
-                Bs. / USD
-              </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Modalidad Selector */}
             <div className="space-y-1.5">
-              <Label htmlFor="bcv_rate">Tasa oficial BCV (Bs. por cada $1)</Label>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Modalidad de Fijación</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, bcv_rate_mode: 'auto_b' })}
+                  className={cn(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between",
+                    (settings.bcv_rate_mode || 'auto_b') === 'auto_b'
+                      ? "bg-primary/10 border-primary text-foreground ring-1 ring-primary"
+                      : "bg-card border-border hover:border-primary/40 text-muted-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
+                    <Bot className="h-4 w-4 text-primary" />
+                    <span>Automática (Modalidad B)</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Sincroniza la última tasa de cierre oficial con Fecha Valor publicada por el BCV.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, bcv_rate_mode: 'manual' })}
+                  className={cn(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between",
+                    settings.bcv_rate_mode === 'manual'
+                      ? "bg-primary/10 border-primary text-foreground ring-1 ring-primary"
+                      : "bg-card border-border hover:border-primary/40 text-muted-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>Manual</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    El administrador define y bloquea una tasa personalizada fija.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Sync Action Button */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-muted/40 border border-border/60">
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Sincronización en vivo con el BCV</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {settings.bcv_fecha_valor 
+                    ? `Fecha Valor oficial: ${settings.bcv_fecha_valor}` 
+                    : "Consulta la tasa de cierre directamente del BCV"}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isSyncingBCV}
+                onClick={handleSyncBCV}
+                className="gap-1.5 text-xs font-semibold h-9 shrink-0 cursor-pointer border-primary/40 hover:bg-primary/10"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5 text-primary", isSyncingBCV ? "animate-spin" : "")} />
+                <span>{isSyncingBCV ? "Consultando..." : "Sincronizar BCV Ahora"}</span>
+              </Button>
+            </div>
+
+            {syncFeedback && (
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>{syncFeedback}</span>
+              </div>
+            )}
+
+            {/* Tasa Input Field */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="bcv_rate" className="text-xs font-semibold">Tasa Activa en la App (Bs. por cada $1 USD)</Label>
+                <span className="text-[11px] text-muted-foreground">Editable manualmente</span>
+              </div>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-primary font-bold">
                   Bs.
                 </span>
                 <Input
@@ -165,22 +284,22 @@ export default function AdminSettingsPage() {
                   type="text"
                   inputMode="decimal"
                   required
-                  disabled={isLoading}
+                  disabled={isLoading || isSyncingBCV}
                   value={settings.bcv_exchange_rate}
                   onChange={(e) =>
                     setSettings({ ...settings, bcv_exchange_rate: e.target.value as any })
                   }
-                  className="pl-11 text-base font-semibold"
+                  className="pl-11 text-base font-bold font-mono text-foreground"
                   placeholder="36.50"
                 />
               </div>
             </div>
 
             {/* Live conversion sample */}
-            <div className="p-3 bg-muted/50 rounded-lg border text-xs space-y-1">
+            <div className="p-3 bg-card rounded-xl border text-xs space-y-1">
               <span className="text-muted-foreground font-medium">Ejemplo de conversión en reservas:</span>
               <p className="font-semibold text-foreground">
-                ${sampleUSD}.00 USD = <span className="text-primary font-bold">Bs. {sampleVES}</span>
+                ${sampleUSD}.00 USD = <span className="text-primary font-bold text-sm">Bs. {sampleVES}</span>
               </p>
             </div>
           </CardContent>
