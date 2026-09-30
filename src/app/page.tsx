@@ -10,35 +10,26 @@ import type { Service, ServiceZone } from '@/lib/types';
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-[#0B0E11] text-[#EAECEF]">
-      {/* Top Navbar */}
-      <nav className="sticky top-0 z-40 bg-[#0B0E11]/75 backdrop-blur-xl border-b border-[#2B313A]/60 px-4 md:px-8 py-3">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="relative group flex items-center py-1">
-            {/* Ambient Gold Glow Halo behind logo */}
-            <div className="absolute inset-0 w-36 h-12 bg-[#d5ae33]/20 rounded-full blur-xl group-hover:bg-[#d5ae33]/30 transition-all pointer-events-none -left-2"></div>
-            <img 
-              src="/logo.png" 
-              alt="AutoSpa VZLA" 
-              className="relative z-10 h-14 md:h-16 lg:h-17 w-auto object-contain brightness-[1.1] contrast-[1.15] drop-shadow-[0_2px_14px_rgba(213,174,51,0.55)] drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] transition-all duration-300 group-hover:scale-105 group-hover:drop-shadow-[0_4px_22px_rgba(213,174,51,0.75)]" 
-            />
-          </Link>
-          <div className="flex items-center gap-3">
+      {/* Floating Transparent Top Header */}
+      <header className="absolute top-0 left-0 right-0 z-40 bg-transparent px-4 md:px-8 py-5">
+        <div className="max-w-7xl mx-auto flex items-center justify-end">
+          <div className="flex items-center gap-3 bg-[#0B0E11]/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
             <Link href="/login">
-              <Button variant="ghost" size="sm" className="text-sm text-[#848E9C] hover:text-white hover:bg-[#1E2329] transition-colors">
+              <Button variant="ghost" size="sm" className="text-xs md:text-sm text-[#C5CBD5] hover:text-white hover:bg-white/10 rounded-full transition-colors">
                 Iniciar Sesión
               </Button>
             </Link>
             <Link href="/client/booking">
-              <Button size="sm" className="bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] font-extrabold shadow-md gold-glow px-5 py-2 rounded-full transition-all hover:scale-105">
+              <Button size="sm" className="bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] font-extrabold text-xs md:text-sm shadow-md gold-glow px-5 py-2 rounded-full transition-all hover:scale-105">
                 Reservar Cita
               </Button>
             </Link>
           </div>
         </div>
-      </nav>
+      </header>
 
       {/* Hero Section with Cinematic Background Video */}
-      <section className="relative min-h-[85vh] lg:min-h-[90vh] flex items-center justify-center pt-24 pb-20 px-4 md:px-6 lg:px-8 overflow-hidden border-b border-[#2B313A]">
+      <section className="relative min-h-[92vh] flex items-center justify-center pt-28 pb-20 px-4 md:px-6 lg:px-8 overflow-hidden border-b border-[#2B313A]">
         {/* Background Video Layer */}
         <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
           <video
@@ -59,15 +50,20 @@ export default function LandingPage() {
         </div>
 
         {/* Foreground Content */}
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#181A20]/80 backdrop-blur-md border border-[#d5ae33]/40 text-xs md:text-sm font-semibold text-[#d5ae33] mb-8 shadow-[0_0_20px_rgba(213,174,51,0.2)]">
-            <span className="w-2 h-2 rounded-full bg-[#d5ae33] animate-ping"></span>
-            <Sparkles size={14} className="text-[#d5ae33]" />
-            Car Detailing & Lavado Ecológico en Caracas
+        <div className="max-w-4xl mx-auto text-center relative z-10 flex flex-col items-center">
+          {/* Main Hero Centered Logo */}
+          <div className="relative group mb-6 flex justify-center">
+            {/* Ambient Golden Glow Halo behind center logo */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-32 bg-[#d5ae33]/30 rounded-full blur-2xl group-hover:bg-[#d5ae33]/45 transition-all pointer-events-none"></div>
+            <img 
+              src="/logo.png" 
+              alt="AutoSpa VZLA" 
+              className="relative z-10 h-24 sm:h-28 md:h-36 w-auto object-contain brightness-[1.12] contrast-[1.18] drop-shadow-[0_4px_22px_rgba(213,174,51,0.65)] drop-shadow-[0_8px_32px_rgba(0,0,0,0.95)] transition-transform duration-300 hover:scale-105" 
+            />
           </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white mb-6 leading-[1.1] drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
-            <span className="gold-gradient-text drop-shadow-[0_4px_25px_rgba(213,174,51,0.35)]">Tu auto impecable,</span>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white mb-6 leading-[1.1] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
+            <span className="gold-gradient-text drop-shadow-[0_4px_25px_rgba(213,174,51,0.4)]">Tu auto impecable,</span>
             <br className="hidden sm:inline" /> donde tú estés
           </h1>
 
