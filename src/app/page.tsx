@@ -45,15 +45,15 @@ export default function LandingPage() {
             muted
             playsInline
             poster="/hero-carwash-poster.jpg"
-            className="w-full h-full object-cover object-center scale-105 filter brightness-[0.65] contrast-[1.1] transition-opacity duration-1000"
+            className="w-full h-full object-cover object-center scale-105 filter brightness-[0.95] contrast-[1.05] transition-opacity duration-1000"
           >
             <source src="/hero-carwash.mp4" type="video/mp4" />
           </video>
           
-          {/* Deep Cinematic Gradients & Vignette for Maximum Text Legibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E11] via-[#0B0E11]/75 to-[#0B0E11]/85"></div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(11,14,17,0.7)_70%,rgba(11,14,17,0.95)_100%)]"></div>
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#d5ae33]/15 rounded-full blur-[120px]"></div>
+          {/* Subtle Balanced Overlay for Bright Visuals and Clear Readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E11] via-[#0B0E11]/35 to-[#0B0E11]/50"></div>
+          <div className="absolute inset-0 bg-black/25"></div>
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#d5ae33]/10 rounded-full blur-[140px]"></div>
         </div>
 
         {/* Foreground Content */}
