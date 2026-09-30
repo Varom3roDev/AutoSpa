@@ -229,7 +229,7 @@ export default function LandingPage() {
                 Reservar Ahora
               </Button>
             </Link>
-            <Link href="https://wa.me/584121234567" target="_blank" rel="noopener noreferrer">
+            <Link href="https://wa.me/584241979461?text=Hola%20AutoSpa,%20deseo%20informaci%C3%B3n%20sobre%20sus%20servicios%20de%20lavado" target="_blank" rel="noopener noreferrer">
               <Button size="lg" variant="outline" className="w-full sm:w-auto text-base font-semibold px-8 h-13 rounded-full border-[#2B313A] bg-[#1E2329] text-white hover:bg-[#2B313A]">
                 <MessageCircle className="mr-2 h-5 w-5 text-[#0ECB81]" />
                 WhatsApp Directo
@@ -268,7 +268,7 @@ export default function LandingPage() {
             <ul className="space-y-2">
               <li className="flex items-center gap-2">
                 <Phone size={14} className="text-[#d5ae33]" />
-                <span>+58 412 123 4567</span>
+                <a href="tel:+584241979461" className="hover:text-white transition-colors">+58 424 197 9461</a>
               </li>
               <li className="flex items-center gap-2">
                 <Mail size={14} className="text-[#d5ae33]" />

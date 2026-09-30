@@ -42,10 +42,10 @@ export const DEFAULT_TAX_RATE = 0;
 
 /** App contact info */
 export const CONTACT = {
-  phone: "+584121234567",
+  phone: "+58 424 197 9461",
   email: "contacto@autospa.com.ve",
-  whatsapp: "584121234567",
-  whatsappUrl: "https://wa.me/584121234567",
+  whatsapp: "584241979461",
+  whatsappUrl: "https://wa.me/584241979461?text=Hola%20AutoSpa,%20deseo%20informaci%C3%B3n%20sobre%20sus%20servicios%20de%20lavado",
   instagram: "@autospa.ccs",
 };
 
