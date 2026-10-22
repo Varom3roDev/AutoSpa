@@ -51,9 +51,9 @@ export const CONTACT = {
 
 /** Booking step names (for wizard) */
 export const BOOKING_STEPS = [
-  { key: "vehicle", label: "Vehículo" },
-  { key: "service", label: "Servicio" },
-  { key: "addons", label: "Extras" },
+  { key: "vehicle", label: "Paciente" },
+  { key: "service", label: "Sesión" },
+  { key: "addons", label: "Sesiones Extras" },
   { key: "address", label: "Dirección" },
   { key: "schedule", label: "Fecha y Hora" },
   { key: "summary", label: "Resumen" },

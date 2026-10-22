@@ -36,6 +36,7 @@ export async function GET(req: Request) {
     }
 
     const bookedSlots: string[] = [];
+    const activeBookings: Array<{ id: string; slot: string }> = [];
     if (data && data.length > 0) {
       const now = Date.now();
       const HOLD_LIMIT_MS = 30 * 60 * 1000; // 30 minutos
@@ -59,6 +60,10 @@ export async function GET(req: Request) {
           continue;
         }
 
+        if (b.scheduled_time_slot) {
+          activeBookings.push({ id: b.id, slot: b.scheduled_time_slot });
+        }
+
         const norm = normalizeTimeSlotId(b.scheduled_time_slot);
         if (norm && !bookedSlots.includes(norm)) {
           bookedSlots.push(norm);
@@ -69,7 +74,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       date,
       bookedSlots,
-      totalBooked: bookedSlots.length,
+      activeBookings,
+      totalBooked: activeBookings.length,
     });
   } catch (err: any) {
     console.error('API availability error:', err);

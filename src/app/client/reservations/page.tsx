@@ -9,9 +9,10 @@ import { useAuth } from '@/lib/auth/auth-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { TimeRemainingBadge } from '@/components/shared/time-remaining-badge';
 import { Calendar, ClipboardList, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatTimeSlot, playAudioChime, getStatusLabel } from '@/lib/utils';
+import { formatCurrency, formatTimeSlot, playAudioChime, getStatusLabel, getBookingTimeStatus, cn } from '@/lib/utils';
 import { showSystemNotification } from '@/lib/notifications';
 import { NotificationPermissionPrompt } from '@/components/shared/notification-permission-prompt';
 import type { Booking, Service } from '@/lib/types';
@@ -29,14 +30,18 @@ export default function ClientReservationsPage() {
   const activeStatuses = ['pending_payment', 'confirmed', 'assigned', 'en_route', 'arrived', 'in_progress', 'quality_check'];
   
   async function loadData() {
-    if (user?.id) {
-      setIsLoading(true);
+    setIsLoading(true);
+    try {
+      const activeCustomerId = user?.id || 'c_1';
       const [bookingsData, servicesData] = await Promise.all([
-        fetchBookings({ customerId: user.id }),
+        fetchBookings(user?.id ? { customerId: user.id } : { customerId: activeCustomerId }),
         fetchServices(),
       ]);
       setBookings(bookingsData);
       setServices(servicesData);
+    } catch (err) {
+      console.warn('Error loading client reservations:', err);
+    } finally {
       setIsLoading(false);
     }
   }
@@ -49,6 +54,16 @@ export default function ClientReservationsPage() {
     };
 
     window.addEventListener('autospa_bookings_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    // BroadcastChannel para sincronización instantánea entre pestañas del mismo navegador
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('autospa_global_sync');
+      bc.onmessage = () => {
+        loadData();
+      };
+    } catch {}
 
     // Suscripción Realtime con Supabase
     const supabase = createClient();
@@ -64,41 +79,43 @@ export default function ClientReservationsPage() {
         { event: '*', schema: 'public', table: 'bookings' },
         (payload: any) => {
           loadData();
-          const targetCustomerId = payload.new?.customer_id;
-          if (!targetCustomerId || targetCustomerId === user?.id || user?.role === 'client') {
-            playClientNotificationSound();
-            const code = payload.new?.code || 'Tu Reserva';
-            const status = payload.new?.status;
-            if (status) {
-              const statusText = getStatusLabel(status);
-              showSystemNotification('AutoSpa VZLA', {
-                body: `${code}: Estado actualizado a "${statusText}".`,
-                url: payload.new?.id ? `/client/reservations/${payload.new.id}` : '/client/reservations',
-              });
-            }
+          playClientNotificationSound();
+          const code = payload.new?.code || 'Tu Reserva';
+          const status = payload.new?.status;
+          if (status) {
+            const statusText = getStatusLabel(status);
+            showSystemNotification('AutoSpa VZLA', {
+              body: `${code}: Estado actualizado a "${statusText}".`,
+              url: payload.new?.id ? `/client/reservations/${payload.new.id}` : '/client/reservations',
+            });
           }
         }
       )
       .on('broadcast', { event: 'client_booking_updated' }, (payload: any) => {
         loadData();
-        const targetCustomerId = payload.payload?.customerId;
-        if (!targetCustomerId || targetCustomerId === user?.id || user?.role === 'client') {
-          playClientNotificationSound();
-          const code = payload.payload?.code || 'Tu Reserva';
-          const status = payload.payload?.status;
-          if (status) {
-            const statusText = getStatusLabel(status);
-            showSystemNotification('AutoSpa VZLA', {
-              body: `${code}: Estado actualizado a "${statusText}".`,
-              url: payload.payload?.bookingId ? `/client/reservations/${payload.payload.bookingId}` : '/client/reservations',
-            });
-          }
+        playClientNotificationSound();
+        const code = payload.payload?.code || 'Tu Reserva';
+        const status = payload.payload?.status;
+        if (status) {
+          const statusText = getStatusLabel(status);
+          showSystemNotification('AutoSpa VZLA', {
+            body: `${code}: Estado actualizado a "${statusText}".`,
+            url: payload.payload?.bookingId ? `/client/reservations/${payload.payload.bookingId}` : '/client/reservations',
+          });
         }
+      })
+      .on('broadcast', { event: 'new_booking' }, () => {
+        loadData();
+        playClientNotificationSound();
       })
       .subscribe();
 
     return () => {
       window.removeEventListener('autospa_bookings_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
       supabase.removeChannel(channel);
     };
   }, [user?.id, user?.role]);
@@ -108,18 +125,25 @@ export default function ClientReservationsPage() {
 
   const renderBookingCard = (booking: Booking) => {
     const service = services.find(s => s.id === booking.service_id);
+    const timeStatus = getBookingTimeStatus(booking);
     
     return (
       <Link href={`/client/reservations/${booking.id}`} key={booking.id}>
-        <Card className="mb-4 transition-colors hover:bg-muted/50 active:bg-muted">
+        <Card className={cn(
+          "mb-4 transition-all hover:bg-muted/50 active:bg-muted",
+          timeStatus.isOverdue && "border-rose-500/50 bg-rose-500/[0.04] shadow-sm"
+        )}>
           <CardContent className="p-4">
-            <div className="flex items-start justify-between mb-2">
-              <span className="font-bold font-mono text-sm">{booking.code}</span>
+            <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="font-bold font-mono text-sm">{booking.code}</span>
+                <TimeRemainingBadge booking={booking} size="sm" />
+              </div>
               <StatusBadge status={booking.status} />
             </div>
             
             <div className="mb-3 text-lg font-semibold">
-              {service?.name || 'Servicio de Lavado'}
+              {service?.name || 'Sesión de Cuidado'}
             </div>
             
             <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
@@ -127,9 +151,16 @@ export default function ClientReservationsPage() {
               <span>{booking.scheduled_date} • {formatTimeSlot(booking.scheduled_time_slot)}</span>
             </div>
             
-            <div className="flex items-center gap-1 font-medium">
-              <DollarSign className="w-4 h-4 text-green-600" />
-              <span>{formatCurrency(booking.total_usd)}</span>
+            <div className="flex items-center justify-between font-medium">
+              <div className="flex items-center gap-1">
+                <DollarSign className="w-4 h-4 text-green-600" />
+                <span>{formatCurrency(booking.total_usd)}</span>
+              </div>
+              {timeStatus.isOverdue && (
+                <span className="text-[11px] font-bold text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded">
+                  En revisión por Soporte
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -144,10 +175,10 @@ export default function ClientReservationsPage() {
       </div>
       <h3 className="mb-2 text-lg font-semibold">{message}</h3>
       <p className="mb-6 text-sm text-muted-foreground text-balance">
-        Cuando realices una reserva de servicio, aparecerá aquí.
+        Cuando realices una reserva de sesión, aparecerá aquí.
       </p>
       <Link href="/client/booking">
-        <Button>Reservar Ahora</Button>
+        <Button>Reservar Sesión</Button>
       </Link>
     </div>
   );

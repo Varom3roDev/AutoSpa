@@ -104,7 +104,7 @@ export default function TechnicianHistoryPage() {
             <CardContent className="p-3">
               <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 mb-1">
                 <CheckCircle2 className="h-4 w-4" />
-                <span className="text-xs font-semibold">Servicios Realizados</span>
+                <span className="text-xs font-semibold">Sesiones Realizadas</span>
               </div>
               <p className="text-2xl font-bold text-foreground">{totalCompletedCount}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">Completados con éxito</p>
@@ -130,7 +130,7 @@ export default function TechnicianHistoryPage() {
         {/* History List */}
         <div className="space-y-3">
           <h3 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-            <History className="h-4 w-4 text-primary" /> Servicios Finalizados
+            <History className="h-4 w-4 text-primary" /> Sesiones Finalizadas
           </h3>
 
           {isLoading ? (
@@ -155,7 +155,7 @@ export default function TechnicianHistoryPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h4 className="font-semibold text-sm leading-tight">
-                            {svc?.name || "Servicio AutoSpa"}
+                            {svc?.name || "Sesión AutoSpa"}
                           </h4>
                           <Badge variant="outline" className="font-mono text-[10px]">
                             {order.code || `BK-${order.id.slice(-4)}`}
@@ -199,7 +199,7 @@ export default function TechnicianHistoryPage() {
             })
           ) : (
             <Card className="text-center py-10 px-4">
-              <p className="text-sm font-semibold">No hay servicios finalizados aún</p>
+              <p className="text-sm font-semibold">No hay sesiones finalizadas aún</p>
               <p className="text-xs text-muted-foreground mt-1">
                 Tus órdenes completadas aparecerán listadas aquí con su balance.
               </p>

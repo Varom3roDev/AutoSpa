@@ -98,10 +98,22 @@ export function useBookingState() {
     const { service, vehicle, addons } = state;
     if (!service) return { subtotal: 0, tax: 0, total: 0, servicePrice: 0, addonsTotal: 0 };
 
-    const sizeCategory = vehicle?.size_category || "medium";
-    const servicePrice = service.price_by_vehicle_size[sizeCategory] || service.base_price_usd;
+    const isMoto = vehicle?.type === 'motorcycle';
+    const isCamioneta = vehicle?.size_category === 'large' || vehicle?.size_category === 'xlarge' || ['suv', 'pickup', 'van', 'truck'].includes(vehicle?.type || '');
 
+    let servicePrice = service.base_price_usd;
+    if (isMoto) {
+      servicePrice = 10;
+    } else if (isCamioneta) {
+      servicePrice = service.price_by_vehicle_size?.['large'] ?? (service.name.includes('24') ? 30 : 20);
+    } else {
+      // Carro (Sedán, Coupé, Hatchback, Yaris, Corolla, etc.)
+      servicePrice = service.price_by_vehicle_size?.['medium'] ?? (service.name.includes('24') ? 25 : 15);
+    }
+
+    const sizeCategory = vehicle?.size_category || "medium";
     const addonsTotal = addons.reduce((sum, addon) => {
+      if (addon.quote_on_inspection) return sum;
       const addonPrice =
         addon.price_by_vehicle_size?.[sizeCategory] ?? addon.price_usd;
       return sum + addonPrice;

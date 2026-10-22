@@ -143,7 +143,7 @@ export default function ServicesAdminPage() {
   };
 
   const handleDeleteService = async (id: string) => {
-    if (!confirm("¿Estás seguro de que deseas eliminar este servicio?")) return;
+    if (!confirm("¿Estás seguro de que deseas eliminar esta sesión?")) return;
     await deleteService(id);
     await loadData();
   };
@@ -190,7 +190,7 @@ export default function ServicesAdminPage() {
   };
 
   const handleDeleteAddon = async (id: string) => {
-    if (!confirm("¿Estás seguro de que deseas eliminar este adicional?")) return;
+    if (!confirm("¿Estás seguro de que deseas eliminar esta sesión extra?")) return;
     await deleteAddon(id);
     await loadData();
   };
@@ -198,11 +198,11 @@ export default function ServicesAdminPage() {
   return (
     <div className="min-h-dvh bg-background">
       <PageHeader
-        title="Servicios y Precios"
+        title="Catálogo de Sesiones y Precios"
         action={
           <Button size="sm" className="gap-1 shadow-xs" onClick={handleOpenNewService}>
             <Plus className="h-4 w-4" />
-            Nuevo Servicio
+            Nueva Sesión
           </Button>
         }
       />
@@ -210,8 +210,8 @@ export default function ServicesAdminPage() {
       <Tabs defaultValue="services" className="px-4 pt-4">
         <div className="flex items-center justify-between gap-3">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="services">Servicios ({services.length})</TabsTrigger>
-            <TabsTrigger value="addons">Extras / Adicionales ({addons.length})</TabsTrigger>
+            <TabsTrigger value="services">Sesiones ({services.length})</TabsTrigger>
+            <TabsTrigger value="addons">Sesiones Extras ({addons.length})</TabsTrigger>
           </TabsList>
         </div>
 
@@ -427,17 +427,17 @@ export default function ServicesAdminPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isNewService ? "Nuevo Servicio" : "Editar Servicio"}
+              {isNewService ? "Nueva Sesión" : "Editar Sesión"}
             </DialogTitle>
             <DialogDescription>
-              Configura los datos del servicio y sus tarifas según el tamaño del vehículo.
+              Configura los datos de la sesión y sus tarifas según el tamaño del paciente.
             </DialogDescription>
           </DialogHeader>
 
           {editingService && (
             <form onSubmit={handleSaveService} className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label htmlFor="srv_name">Nombre del servicio</Label>
+                <Label htmlFor="srv_name">Nombre de la sesión</Label>
                 <Input
                   id="srv_name"
                   required
@@ -502,7 +502,7 @@ export default function ServicesAdminPage() {
               {/* Price per vehicle size category */}
               <div className="space-y-2 pt-2 border-t">
                 <Label className="font-semibold text-sm">
-                  Precios en USD ($) por tamaño de vehículo:
+                  Precios en USD ($) por tamaño de paciente:
                 </Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -652,7 +652,7 @@ export default function ServicesAdminPage() {
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isSaving}>
-                  {isSaving ? "Guardando..." : "Guardar Servicio"}
+                  {isSaving ? "Guardando..." : "Guardar Sesión"}
                 </Button>
               </DialogFooter>
             </form>

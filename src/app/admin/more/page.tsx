@@ -22,10 +22,10 @@ import {
 
 const menuItems = [
   {
-    label: "Servicios y Precios",
+    label: "Sesiones y Precios",
     href: "/admin/services",
     icon: Wrench,
-    description: "Gestiona tu catálogo",
+    description: "Catálogo de sesiones y extras",
   },
   {
     label: "Técnicos",

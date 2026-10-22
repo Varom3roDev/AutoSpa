@@ -7,11 +7,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/lib/auth/auth-context';
-import { fetchCustomerVehicles, insertVehicle, updateVehicle, deleteVehicle } from '@/lib/supabase/api';
+import { fetchCustomerVehicles, insertVehicle, updateVehicle, deleteVehicle, getCachedCustomerVehicles } from '@/lib/supabase/api';
 import { PageHeader } from '@/components/shared/page-header';
 import { VehicleCard } from '@/components/vehicles/vehicle-card';
 import { Vehicle, VehicleType, VehicleSizeCategory } from '@/lib/types';
-import { Car, Plus, CalendarPlus, Trash2, Sparkles } from 'lucide-react';
+import { Car, Plus, CalendarPlus, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -56,7 +56,14 @@ const VEHICLE_TYPE_OPTIONS: { label: string; value: VehicleType; size: VehicleSi
 export default function ClientVehiclesPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => getCachedCustomerVehicles());
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const cached = getCachedCustomerVehicles();
+      return cached.length === 0;
+    }
+    return true;
+  });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [selectedType, setSelectedType] = useState<string>('sedan');
@@ -67,8 +74,12 @@ export default function ClientVehiclesPage() {
   }, [user]);
 
   async function loadVehicles() {
-    const data = await fetchCustomerVehicles(user?.id);
-    setVehicles(data);
+    try {
+      const data = await fetchCustomerVehicles(user?.id);
+      setVehicles(data);
+    } finally {
+      setIsLoadingVehicles(false);
+    }
   }
 
   const {
@@ -161,7 +172,7 @@ export default function ClientVehiclesPage() {
 
   const handleDelete = async () => {
     if (!editingVehicle) return;
-    if (!confirm('¿Estás seguro de que deseas eliminar este vehículo?')) return;
+    if (!confirm('¿Estás seguro de que deseas eliminar este paciente?')) return;
     setIsSaving(true);
     try {
       await deleteVehicle(editingVehicle.id);
@@ -176,19 +187,19 @@ export default function ClientVehiclesPage() {
 
   return (
     <div className="flex flex-col min-h-screen pb-32 relative">
-      <PageHeader title="Mis Vehículos" />
+      <PageHeader title="Mis Pacientes" />
 
       {/* Dialog Agregar / Editar Vehículo */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
-              {editingVehicle ? 'Editar Vehículo' : 'Agregar Vehículo'}
+              {editingVehicle ? 'Editar Paciente' : 'Registrar Paciente'}
             </DialogTitle>
             <DialogDescription>
               {editingVehicle
-                ? 'Actualiza los datos del vehículo para tus servicios.'
-                : 'Ingresa los datos de tu vehículo para asignarlo a tus servicios de lavado.'}
+                ? 'Actualiza los datos del paciente para sus sesiones.'
+                : 'Ingresa los datos de tu paciente para asociarlo a sus sesiones de cuidado.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
@@ -230,7 +241,7 @@ export default function ClientVehiclesPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="type">Tipo de Vehículo</Label>
+              <Label htmlFor="type">Tipo de Paciente</Label>
               <Select
                 value={selectedType}
                 onValueChange={(val: string | null) => {
@@ -241,7 +252,7 @@ export default function ClientVehiclesPage() {
                 }}
               >
                 <SelectTrigger id="type">
-                  <SelectValue placeholder="Selecciona el tipo" />
+                  <SelectValue placeholder="Selecciona el tipo de paciente" />
                 </SelectTrigger>
                 <SelectContent>
                   {VEHICLE_TYPE_OPTIONS.map((opt) => (
@@ -277,7 +288,7 @@ export default function ClientVehiclesPage() {
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isSaving}>
-                  {isSaving ? 'Guardando...' : editingVehicle ? 'Guardar Cambios' : 'Guardar Vehículo'}
+                  {isSaving ? 'Guardando...' : editingVehicle ? 'Guardar Cambios' : 'Guardar Paciente'}
                 </Button>
               </div>
             </DialogFooter>
@@ -286,7 +297,25 @@ export default function ClientVehiclesPage() {
       </Dialog>
 
       <main className="flex-1 p-4 max-w-lg mx-auto w-full">
-        {vehicles.length > 0 ? (
+        {isLoadingVehicles && vehicles.length === 0 ? (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl border border-border/40 bg-card/50 animate-pulse flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <Car className="w-6 h-6 opacity-60" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-36 bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-muted/60 rounded animate-pulse" />
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span>Cargando pacientes...</span>
+              </div>
+            </div>
+          </div>
+        ) : vehicles.length > 0 ? (
           <div className="space-y-4">
             {vehicles.map((vehicle) => (
               <div key={vehicle.id} className="space-y-2">
@@ -304,7 +333,7 @@ export default function ClientVehiclesPage() {
                       className="text-xs h-8 gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
                     >
                       <CalendarPlus className="h-3.5 w-3.5" />
-                      Reservar lavado con este auto
+                      Reservar sesión para este paciente
                     </Button>
                   </Link>
                 </div>
@@ -316,9 +345,9 @@ export default function ClientVehiclesPage() {
             <div className="flex items-center justify-center w-12 h-12 mb-4 rounded-full bg-primary/10">
               <Car className="w-6 h-6 text-primary" />
             </div>
-            <h3 className="mb-2 text-lg font-semibold">Aún no tienes vehículos registrados</h3>
+            <h3 className="mb-2 text-lg font-semibold">Aún no tienes pacientes registrados</h3>
             <p className="mb-6 text-sm text-muted-foreground text-balance">
-              Agrega tu primer vehículo para comenzar a solicitar lavados.
+              Registra tu primer paciente para comenzar a programar sesiones.
             </p>
           </div>
         )}
@@ -333,8 +362,8 @@ export default function ClientVehiclesPage() {
         <button
           type="button"
           onClick={handleOpenAdd}
-          aria-label="Agregar nuevo vehículo"
-          title="Agregar nuevo vehículo"
+          aria-label="Registrar nuevo paciente"
+          title="Registrar nuevo paciente"
           className="relative group flex items-center gap-3 px-6 py-3.5 rounded-full cursor-pointer select-none transition-all duration-300 active:scale-95 shadow-[0_12px_32px_rgba(0,0,0,0.85),0_0_24px_rgba(213,174,51,0.4)] hover:shadow-[0_14px_38px_rgba(213,174,51,0.6)] border-2 border-[#d5ae33]/80 hover:border-[#ffe885] bg-gradient-to-r from-[#181A20] via-[#241F14] to-[#181A20]"
         >
           {/* Reflejo de luz superior biselada (efecto cristal pulido) */}
@@ -359,7 +388,7 @@ export default function ClientVehiclesPage() {
               letterSpacing: '0.12em',
             }}
           >
-            Agregar Vehículo
+            Registrar Paciente
           </span>
 
           {/* Destello de brillo de lujo */}

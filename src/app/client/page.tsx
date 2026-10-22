@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { CalendarPlus, Droplets, Car, Shield, Bell, ArrowRight, Sparkles, Navigation, MapPin } from "lucide-react";
+import { CalendarPlus, Droplets, Car, Shield, Bell, ArrowRight, Sparkles, Navigation, MapPin, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { fetchBookings, fetchServices, fetchAppSettings } from "@/lib/supabase/api";
 import { createClient } from "@/lib/supabase/client";
@@ -28,37 +28,37 @@ function getStatusNotificationDetails(status: string) {
     case "assigned":
       return {
         title: "¡Técnico Asignado!",
-        message: "Un especialista certificado ha sido asignado a tu servicio.",
+        message: "Un especialista certificado ha sido asignado a tu sesión.",
       };
     case "en_route":
       return {
         title: "🚗 ¡Tu técnico va en camino!",
-        message: "El especialista ya inició el viaje hacia tu dirección.",
+        message: "El especialista ya inició el viaje hacia la ubicación de tu paciente.",
       };
     case "arrived":
       return {
         title: "📍 ¡Tu técnico ha llegado!",
-        message: "El especialista ya está en la ubicación acordada.",
+        message: "El especialista ya está listo para atender a tu paciente.",
       };
     case "in_progress":
       return {
-        title: "🫧 ¡Lavado en proceso!",
-        message: "Estamos consintiendo y dejando impecable tu vehículo.",
+        title: "🫧 ¡Sesión en proceso!",
+        message: "Estamos consintiendo y dejando impecable a tu paciente.",
       };
     case "quality_check":
       return {
         title: "🔍 Control de Calidad",
-        message: "Revisando los últimos detalles y acabados del servicio.",
+        message: "Revisando los últimos detalles y acabados de la sesión.",
       };
     case "completed":
       return {
-        title: "✨ ¡Vehículo listo e impecable!",
-        message: "Tu servicio ha concluido exitosamente. ¡Gracias por elegir AutoSpa!",
+        title: "✨ ¡Paciente listo e impecable!",
+        message: "Tu sesión ha concluido exitosamente. ¡Gracias por elegir AutoSpa!",
       };
     default:
       return {
-        title: "Actualización de tu reserva",
-        message: "El estado de tu orden de servicio ha sido actualizado.",
+        title: "Actualización de tu sesión",
+        message: "El estado de tu sesión ha sido actualizado.",
       };
   }
 }
@@ -112,6 +112,15 @@ export default function ClientDashboardPage() {
     window.addEventListener("autospa_services_updated", handleUpdate);
     window.addEventListener("autospa_settings_updated", handleUpdate);
     window.addEventListener("autospa_bookings_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('autospa_global_sync');
+      bc.onmessage = () => {
+        loadDashboard();
+      };
+    } catch {}
 
     // Suscripción Realtime con Supabase
     const supabase = createClient();
@@ -172,12 +181,19 @@ export default function ClientDashboardPage() {
           setTimeout(() => setClientAlert(null), 12000);
         }
       })
+      .on("broadcast", { event: "new_booking" }, () => {
+        loadDashboard();
+      })
       .subscribe();
 
     return () => {
       window.removeEventListener("autospa_services_updated", handleUpdate);
       window.removeEventListener("autospa_settings_updated", handleUpdate);
       window.removeEventListener("autospa_bookings_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
       supabase.removeChannel(channel);
     };
   }, [user?.id, user?.role]);
@@ -198,7 +214,7 @@ export default function ClientDashboardPage() {
           />
           <div>
             <h1 className="text-xl font-extrabold leading-tight text-white">Hola, {firstName}</h1>
-            <p className="text-muted-foreground text-xs">¿Tu auto necesita un lavado hoy?</p>
+            <p className="text-muted-foreground text-xs">¿Tu paciente necesita una sesión hoy?</p>
           </div>
         </div>
         <Link href="/client/profile" title="Ver mi perfil">
@@ -254,8 +270,8 @@ export default function ClientDashboardPage() {
         <Card className="bg-primary text-primary-foreground border-none hover:bg-primary/90 transition-colors shadow-sm">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold mb-1">Reservar Lavado</h2>
-              <p className="text-primary-foreground/80 text-sm">Rápido y a domicilio</p>
+              <h2 className="text-xl font-bold mb-1">Reservar Sesión</h2>
+              <p className="text-primary-foreground/80 text-sm">Cuidado especializado a domicilio</p>
             </div>
             <div className="bg-primary-foreground/20 p-3 rounded-full">
               <CalendarPlus className="h-8 w-8" />
@@ -267,7 +283,7 @@ export default function ClientDashboardPage() {
       {/* Upcoming Booking */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Próxima reserva</h2>
+          <h2 className="text-lg font-semibold">Próxima sesión</h2>
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             En Vivo
@@ -275,7 +291,16 @@ export default function ClientDashboardPage() {
         </div>
         
         {isLoading ? (
-          <p className="text-xs text-muted-foreground">Verificando reservas...</p>
+          <div className="p-4 rounded-xl border border-border/40 bg-card/40 animate-pulse flex items-center justify-between">
+            <div className="space-y-2">
+              <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+              <div className="h-3 w-48 bg-muted/60 rounded animate-pulse" />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span>Verificando citas...</span>
+            </div>
+          </div>
         ) : upcomingBooking && upcomingService ? (
           <Card>
             <CardContent className="p-4">
@@ -301,7 +326,7 @@ export default function ClientDashboardPage() {
         ) : (
           <Card className="bg-muted/50 border-dashed">
             <CardContent className="p-6 text-center">
-              <p className="text-muted-foreground mb-4 text-sm">No tienes reservas próximas</p>
+              <p className="text-muted-foreground mb-4 text-sm">No tienes sesiones próximas</p>
               <Link href="/client/booking">
                 <Button variant="secondary" size="sm">Programar ahora</Button>
               </Link>
@@ -318,10 +343,10 @@ export default function ClientDashboardPage() {
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold">
-              {settings?.home_banner_title || "Lavado ecológico y premium"}
+              {settings?.home_banner_title || "Sesiones premium de spa automotriz"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {settings?.home_banner_text || "Ahorramos hasta 200L de agua por servicio en Caracas"}
+              {settings?.home_banner_text || "Ahorramos hasta 200L de agua por sesión en Caracas"}
             </p>
           </div>
         </CardContent>

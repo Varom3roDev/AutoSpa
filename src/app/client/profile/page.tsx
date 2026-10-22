@@ -547,7 +547,7 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle>Nueva Dirección</DialogTitle>
             <DialogDescription>
-              Ingresa el lugar donde se prestará el servicio de lavado.
+              Ingresa el lugar donde se atenderá a tu paciente para la sesión.
             </DialogDescription>
           </DialogHeader>
 
@@ -635,7 +635,7 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle>Editar Dirección</DialogTitle>
             <DialogDescription>
-              Modifica los datos del lugar donde se prestará el servicio.
+              Modifica los datos del lugar donde se atenderá a tu paciente.
             </DialogDescription>
           </DialogHeader>
 
@@ -749,7 +749,7 @@ export default function ProfilePage() {
                 <span>Efectivo en Dólares ($ USD)</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Puedes pagar directamente al técnico al finalizar el servicio. Agradecemos billetes en buen estado.
+                Puedes pagar directamente al técnico al finalizar la sesión. Agradecemos billetes en buen estado.
               </p>
             </div>
 
@@ -770,7 +770,7 @@ export default function ProfilePage() {
                 <span>Punto de Venta / Tarjeta</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Nuestros técnicos cuentan con punto de venta inalámbrico al momento del servicio.
+                Nuestros técnicos cuentan con punto de venta inalámbrico al momento de la sesión.
               </p>
             </div>
           </div>
@@ -792,7 +792,7 @@ export default function ProfilePage() {
               Preferencias de Notificación
             </DialogTitle>
             <DialogDescription>
-              Configura cómo deseas recibir avisos sobre tus reservas y servicios.
+              Configura cómo deseas recibir avisos sobre tus reservas y sesiones.
             </DialogDescription>
           </DialogHeader>
 
@@ -832,7 +832,7 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40">
               <div>
                 <p className="font-semibold text-sm">Recibos por Correo Electrónico</p>
-                <p className="text-xs text-muted-foreground">Comprobantes y resumen de factura de cada servicio</p>
+                <p className="text-xs text-muted-foreground">Comprobantes y resumen de factura de cada sesión</p>
               </div>
               <input
                 type="checkbox"

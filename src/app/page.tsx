@@ -63,24 +63,24 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white mb-6 leading-[1.1] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
-            <span className="gold-gradient-text drop-shadow-[0_4px_25px_rgba(213,174,51,0.4)]">Tu auto impecable,</span>
+            <span className="gold-gradient-text drop-shadow-[0_4px_25px_rgba(213,174,51,0.4)]">Tu paciente impecable,</span>
             <br className="hidden sm:inline" /> donde tú estés
           </h1>
 
           <p className="text-base sm:text-lg md:text-xl text-[#A0ABBA] max-w-2xl mx-auto mb-10 leading-relaxed drop-shadow-md">
-            Servicio profesional de detailing a domicilio con equipos autónomos de bajo impacto ambiental. Reserva en 1 minuto y disfruta tu tiempo libre.
+            Sesiones profesionales de spa y detallado automotriz a domicilio. Reserva en 1 minuto y consiente a tu paciente sin moverte de casa.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-14">
             <Link href="/client/booking" className="w-full sm:w-auto">
               <Button size="lg" className="w-full sm:w-auto text-base font-extrabold px-9 h-14 rounded-full bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] shadow-[0_8px_25px_rgba(213,174,51,0.4)] gold-glow transition-all hover:scale-105 active:scale-95">
                 <CalendarCheck className="mr-2" size={20} />
-                Reservar Lavado Ahora
+                Reservar Sesión Ahora
               </Button>
             </Link>
-            <Link href="#servicios" className="w-full sm:w-auto">
+            <Link href="#sesiones" className="w-full sm:w-auto">
               <Button variant="outline" size="lg" className="w-full sm:w-auto text-base font-semibold px-8 h-14 rounded-full border-[#2B313A]/90 bg-[#181A20]/80 backdrop-blur-md text-white hover:bg-[#1E2329] hover:border-[#d5ae33]/50 transition-all hover:scale-105">
-                Ver Catálogo y Precios
+                Ver Catálogo de Sesiones
               </Button>
             </Link>
           </div>
@@ -108,7 +108,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">¿Cómo funciona?</h2>
-            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Un proceso simple para tener tu auto como nuevo sin moverte de casa ni hacer filas.</p>
+            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Un proceso simple para tener a tu paciente impecable sin moverte de casa ni hacer filas.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="bg-[#181A20] border-[#2B313A] shadow-md hover:border-[#d5ae33]/40 transition-colors">
@@ -116,10 +116,10 @@ export default function LandingPage() {
                 <div className="w-14 h-14 bg-[#d5ae33]/15 text-[#d5ae33] border border-[#d5ae33]/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Sparkles size={28} />
                 </div>
-                <CardTitle className="text-lg text-white">1. Elige tu servicio</CardTitle>
+                <CardTitle className="text-lg text-white">1. Elige tu sesión</CardTitle>
               </CardHeader>
               <CardContent className="text-center text-[#848E9C] text-sm">
-                Selecciona el tipo de lavado y los servicios adicionales que requieras
+                Selecciona la sesión de spa y las sesiones extras a cotizar bajo inspección
               </CardContent>
             </Card>
 
@@ -150,12 +150,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Services section */}
-      <section id="servicios" className="py-16 md:py-24 px-4 md:px-6 lg:px-8 border-b border-[#2B313A]">
+      {/* Services / Sessions section */}
+      <section id="sesiones" className="py-16 md:py-24 px-4 md:px-6 lg:px-8 border-b border-[#2B313A]">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Nuestros Servicios</h2>
-            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Soluciones de detailing y lavado a medida para cada necesidad.</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Nuestras Sesiones</h2>
+            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Cuidado y spa automotriz de alta gama adaptado a cada paciente.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {SERVICES.map((service: Service) => (
@@ -172,7 +172,7 @@ export default function LandingPage() {
                     </Badge>
                   </div>
                   <ul className="space-y-2.5">
-                    {service.includes?.slice(0, 3).map((item: string, i: number) => (
+                    {service.includes?.slice(0, 4).map((item: string, i: number) => (
                       <li key={i} className="flex items-start gap-2.5">
                         <Check className="text-[#0ECB81] mt-0.5 shrink-0" size={16} />
                         <span className="text-[#EAECEF] text-xs">{item}</span>
@@ -183,7 +183,7 @@ export default function LandingPage() {
                 <CardFooter>
                   <Link href={`/client/booking?service=${service.id}`} className="w-full">
                     <Button className="w-full bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] font-bold">
-                      Seleccionar Servicio
+                      Seleccionar Sesión
                     </Button>
                   </Link>
                 </CardFooter>
@@ -201,13 +201,10 @@ export default function LandingPage() {
           
           <div className="flex flex-wrap justify-center gap-3 mb-8">
             {SERVICE_ZONES.map((zone: ServiceZone) => (
-              <div key={zone.id} className="bg-[#181A20] border border-[#2B313A] hover:border-[#d5ae33]/30 rounded-xl px-4 py-2.5 flex flex-col items-center shadow-xs transition-colors">
-                <span className="font-semibold text-white text-sm flex items-center gap-2">
-                  <MapPin size={15} className="text-[#d5ae33]" />
+              <div key={zone.id} className="bg-[#181A20] border border-[#2B313A] hover:border-[#d5ae33]/40 rounded-xl px-4 py-3 flex items-center gap-2 shadow-xs transition-colors">
+                <MapPin size={16} className="text-[#d5ae33] shrink-0" />
+                <span className="font-semibold text-white text-sm">
                   {zone.name}
-                </span>
-                <span className="text-[11px] text-[#848E9C] mt-0.5">
-                  {zone.surcharge_usd === 0 ? 'Sin recargo' : `+$${zone.surcharge_usd}`} • ~{zone.avg_travel_minutes} min
                 </span>
               </div>
             ))}
@@ -219,17 +216,17 @@ export default function LandingPage() {
       {/* CTA section */}
       <section className="py-16 px-4 md:px-6 lg:px-8 bg-gradient-to-b from-[#181A20] to-[#0B0E11] text-center border-b border-[#2B313A]">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">¿Listo para un auto impecable?</h2>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">¿Listo para consentir a tu paciente?</h2>
           <p className="text-[#848E9C] text-sm md:text-base mb-8 max-w-xl mx-auto">
-            Reserva tu lavado a domicilio en pocos minutos y disfruta de más tiempo libre mientras nosotros nos encargamos.
+            Reserva la sesión a domicilio en pocos minutos y disfruta de más tiempo libre mientras nosotros nos encargamos del cuidado integral.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/client/booking">
               <Button size="lg" className="w-full sm:w-auto text-base font-extrabold px-8 h-13 rounded-full bg-[#d5ae33] text-[#0B0E11] hover:bg-[#b89325] shadow-lg gold-glow">
-                Reservar Ahora
+                Reservar Sesión
               </Button>
             </Link>
-            <Link href="https://wa.me/584241979461?text=Hola%20AutoSpa,%20deseo%20informaci%C3%B3n%20sobre%20sus%20servicios%20de%20lavado" target="_blank" rel="noopener noreferrer">
+            <Link href="https://wa.me/584241979461?text=Hola%20AutoSpa,%20deseo%20informaci%C3%B3n%20sobre%20sus%20sesiones%20de%20cuidado%20para%20pacientes" target="_blank" rel="noopener noreferrer">
               <Button size="lg" variant="outline" className="w-full sm:w-auto text-base font-semibold px-8 h-13 rounded-full border-[#2B313A] bg-[#1E2329] text-white hover:bg-[#2B313A]">
                 <MessageCircle className="mr-2 h-5 w-5 text-[#0ECB81]" />
                 WhatsApp Directo
@@ -251,13 +248,13 @@ export default function LandingPage() {
               />
             </div>
             <p className="text-[#848E9C] max-w-sm leading-relaxed">
-              Lavado profesional de vehículos a domicilio. Tu auto impecable, donde tú estés.
+              Sesiones de spa y cuidado de pacientes a domicilio. Tu paciente impecable, donde tú estés.
             </p>
           </div>
           <div>
             <h4 className="text-white font-semibold text-sm mb-3">Enlaces Rápidos</h4>
             <ul className="space-y-2">
-              <li><Link href="#servicios" className="hover:text-[#d5ae33] transition-colors">Servicios</Link></li>
+              <li><Link href="#sesiones" className="hover:text-[#d5ae33] transition-colors">Sesiones</Link></li>
               <li><Link href="#cobertura" className="hover:text-[#d5ae33] transition-colors">Cobertura</Link></li>
               <li><Link href="/client/booking" className="hover:text-[#d5ae33] transition-colors">Reservar</Link></li>
               <li><Link href="/login" className="hover:text-[#d5ae33] transition-colors">Iniciar Sesión</Link></li>

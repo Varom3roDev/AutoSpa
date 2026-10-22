@@ -13,7 +13,8 @@ import {
   parseBookingPaymentData,
   verifyPaymentRecord,
   rescheduleBooking,
-  fetchBookedTimeSlots
+  fetchBookedTimeSlots,
+  fetchDateAvailabilityDetails
 } from '@/lib/supabase/api';
 import { createClient } from '@/lib/supabase/client';
 import { 
@@ -24,9 +25,12 @@ import {
   getLocalDateString,
   isTimeSlotInThePast,
   normalizeTimeSlotId,
-  playAudioChime
+  playAudioChime,
+  getBookingTimeStatus,
+  generateDynamicTimeSlots
 } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { TimeRemainingBadge } from '@/components/shared/time-remaining-badge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,8 +70,10 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState('');
+  const [customTimeInput, setCustomTimeInput] = useState('');
   const [isSubmittingReschedule, setIsSubmittingReschedule] = useState(false);
   const [rescheduleBookedSlots, setRescheduleBookedSlots] = useState<string[]>([]);
+  const [rescheduleActiveBookings, setRescheduleActiveBookings] = useState<Array<{ id: string; slot: string }>>([]);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
   // Próximos 7 días
@@ -83,26 +89,35 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     if (!isRescheduleOpen || !selectedDate || !id) return;
     let isMounted = true;
     async function loadRescheduleSlots() {
-      const occupied = await fetchBookedTimeSlots(selectedDate, id);
+      const details = await fetchDateAvailabilityDetails(selectedDate, id);
       if (isMounted) {
-        setRescheduleBookedSlots(occupied);
-        if (selectedSlot) {
-          const norm = normalizeTimeSlotId(selectedSlot);
-          const slotObj = TIME_SLOTS.find(s => s.id === norm);
-          const isPast = slotObj ? isTimeSlotInThePast(slotObj.start_time, selectedDate) : false;
-          if (isPast || occupied.includes(norm)) {
-            setSelectedSlot('');
-          }
-        }
+        setRescheduleBookedSlots(details.bookedSlots);
+        setRescheduleActiveBookings(details.activeBookings);
       }
     }
     loadRescheduleSlots();
     return () => { isMounted = false; };
   }, [isRescheduleOpen, selectedDate, id]);
 
+  const targetDuration = booking?.estimated_duration || 60;
+  const dynamicRescheduleSlots = useMemo(() => {
+    if (!selectedDate || !isRescheduleOpen) return [];
+    return generateDynamicTimeSlots({
+      date: selectedDate,
+      durationMinutes: targetDuration,
+      bufferMinutes: 40,
+      activeBookings: rescheduleActiveBookings,
+      workDayStart: "08:00",
+      workDayEnd: "18:00",
+      stepMinutes: 30,
+      minLeadMinutes: 0,
+    });
+  }, [selectedDate, targetDuration, rescheduleActiveBookings, isRescheduleOpen]);
+
   const handleOpenReschedule = () => {
     setSelectedDate(booking?.scheduled_date || next7Days[0]);
-    setSelectedSlot('');
+    setSelectedSlot(booking?.scheduled_time_slot || '');
+    setCustomTimeInput(booking?.scheduled_time_slot || '');
     setRescheduleError(null);
     setIsRescheduleOpen(true);
   };
@@ -261,7 +276,49 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       />
 
       <div className="p-4 space-y-4 max-w-3xl mx-auto w-full">
-        {/* Status */}
+        {/* Alerta de Retraso Crítico si está Vencida */}
+        {(() => {
+          const timeStatus = getBookingTimeStatus(booking);
+          if (!timeStatus.isOverdue) return null;
+
+          return (
+            <div className="bg-rose-500/15 border-2 border-rose-500/50 rounded-xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-rose-500/20 text-rose-500 rounded-xl shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-rose-500 uppercase tracking-wider">
+                    ¡Orden Vencida / Retrasada ({timeStatus.timeRemainingText})!
+                  </h3>
+                  <p className="text-xs text-foreground mt-0.5">
+                    El horario pactado ({booking.scheduled_date} • {formatTimeSlot(booking.scheduled_time_slot)}) ya finalizó sin que se completara la sesión.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  size="sm"
+                  onClick={() => setIsAssignOpen(true)}
+                  className="flex-1 sm:flex-none text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  <Wrench className="w-3.5 h-3.5 mr-1" />
+                  Reasignar Técnico
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenReschedule}
+                  className="flex-1 sm:flex-none text-xs font-bold border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                >
+                  <Calendar className="w-3.5 h-3.5 mr-1" />
+                  Reagendar
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Status */}
         {(() => {
           const reportedPayment = parseBookingPaymentData(booking.notes);
@@ -272,9 +329,12 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Estado de la Orden</p>
-                  <p className={cn("font-semibold text-base", isWaitingVerification && "text-amber-500")}>
-                    {isWaitingVerification ? 'Pago por Verificar (Reportado)' : getStatusLabel(booking.status)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className={cn("font-semibold text-base", isWaitingVerification && "text-amber-500")}>
+                      {isWaitingVerification ? 'Pago por Verificar (Reportado)' : getStatusLabel(booking.status)}
+                    </p>
+                    <TimeRemainingBadge booking={booking} size="sm" />
+                  </div>
                 </div>
                 {isWaitingVerification ? (
                   <Badge variant="outline" className="flex items-center gap-1.5 font-bold border-amber-500/50 bg-amber-500/15 text-amber-500 text-xs px-2.5 py-1 animate-pulse">
@@ -382,7 +442,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Car className="w-4 h-4 text-primary" /> Vehículo
+                <Car className="w-4 h-4 text-primary" /> Paciente
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm">
@@ -422,17 +482,21 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                 <span className="text-muted-foreground">Turno:</span>
                 <span className="font-medium">{formatTimeSlot(booking.scheduled_time_slot)}</span>
               </div>
+              <div className="flex items-center justify-between pt-1 border-t">
+                <span className="text-muted-foreground text-xs">Cuenta regresiva:</span>
+                <TimeRemainingBadge booking={booking} size="sm" />
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-primary" /> Servicio
+                <Wrench className="w-4 h-4 text-primary" /> Sesión
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-2">
-              <div className="font-medium">{service?.name || 'Servicio General'}</div>
+              <div className="font-medium">{service?.name || 'Sesión General'}</div>
               <div className="flex items-center justify-between text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" /> {service?.base_duration_minutes || 45} min
@@ -624,45 +688,75 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
             </div>
 
             <div>
-              <p className="text-sm font-semibold mb-2 text-foreground">Selecciona el turno disponible:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {TIME_SLOTS.map((slot) => {
-                  const normId = normalizeTimeSlotId(slot.id);
-                  const isPast = isTimeSlotInThePast(slot.start_time, selectedDate);
-                  const isBooked = rescheduleBookedSlots.includes(normId);
-                  const isDisabled = isPast || isBooked;
-                  const isSelected = selectedSlot === normId;
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-foreground">
+                  Turnos sugeridos ({targetDuration} min + 40 min traslado):
+                </p>
+                <Badge variant="outline" className="text-[10px] text-primary border-primary/30 font-medium">
+                  Moto: 40m colchón
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                {dynamicRescheduleSlots.map((slot) => {
+                  const isOccupied = !slot.is_available;
+                  const isSelected = selectedSlot === slot.id;
 
                   return (
                     <button
                       key={slot.id}
                       type="button"
-                      disabled={isDisabled}
-                      onClick={() => setSelectedSlot(normId)}
+                      disabled={isOccupied}
+                      onClick={() => {
+                        setSelectedSlot(slot.id);
+                        setCustomTimeInput(slot.id);
+                      }}
                       className={cn(
-                        "p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer",
-                        isSelected
-                          ? "border-primary bg-primary/10 ring-2 ring-primary/20 shadow-sm"
-                          : "border-[#2B313A] bg-[#181A20] hover:border-primary/40",
-                        isDisabled && "opacity-45 cursor-not-allowed bg-muted/20 border-dashed hover:border-[#2B313A]"
+                        "p-2.5 rounded-xl border flex items-center justify-between text-left text-xs transition-all",
+                        isOccupied
+                          ? "opacity-40 cursor-not-allowed bg-muted/20 border-dashed"
+                          : isSelected
+                            ? "bg-primary/10 border-primary text-foreground font-bold shadow-sm ring-1 ring-primary/40"
+                            : "hover:bg-muted/40 border-border cursor-pointer text-foreground"
                       )}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-xs text-foreground">{slot.label}</span>
-                        {isPast ? (
-                          <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">Pasado</span>
-                        ) : isBooked ? (
-                          <span className="text-[10px] text-destructive font-mono bg-destructive/10 px-1.5 py-0.5 rounded">Ocupado</span>
-                        ) : (
-                          <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded">Libre</span>
-                        )}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="truncate">{slot.label}</span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground mt-1">
-                        {slot.start_time} - {slot.end_time}
-                      </span>
+                      <Badge variant="outline" className={cn(
+                        "text-[9px] py-0 px-1 shrink-0 font-normal",
+                        isOccupied ? "text-destructive border-destructive/20" : "text-emerald-500 border-emerald-500/20"
+                      )}>
+                        {isOccupied ? 'Ocupado' : 'Libre'}
+                      </Badge>
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Opción Manual para el Administrador */}
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
+                  O asignar horario personalizado / ajuste de ruta:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customTimeInput}
+                    onChange={(e) => {
+                      setCustomTimeInput(e.target.value);
+                      setSelectedSlot(e.target.value);
+                    }}
+                    placeholder="Ej. 10:30 - 11:45"
+                    className="flex-1 text-xs bg-muted/30 border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  />
+                  {selectedSlot && (
+                    <Badge variant="secondary" className="text-xs px-2.5 py-1 text-primary bg-primary/10 border border-primary/20 shrink-0 font-medium self-center">
+                      {formatTimeSlot(selectedSlot)}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>

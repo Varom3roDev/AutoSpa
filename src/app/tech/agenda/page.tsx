@@ -14,7 +14,8 @@ import {
   fetchCustomerAddresses,
   updateBookingStatus,
 } from "@/lib/supabase/api";
-import { cn, formatDate, getStatusLabel, getInitials, formatTimeSlot, playAudioChime } from "@/lib/utils";
+import { cn, formatDate, getStatusLabel, getInitials, formatTimeSlot, playAudioChime, getBookingTimeStatus } from "@/lib/utils";
+import { TimeRemainingBadge } from "@/components/shared/time-remaining-badge";
 import { createClient } from "@/lib/supabase/client";
 import { showSystemNotification } from "@/lib/notifications";
 import { NotificationPermissionPrompt } from "@/components/shared/notification-permission-prompt";
@@ -188,7 +189,7 @@ export default function TechnicianAgendaPage() {
                   <span className="text-xs text-muted-foreground font-mono font-semibold">({newOrderAlert.code})</span>
                 </div>
                 <p className="text-xs text-foreground font-medium">
-                  El administrador te acaba de asignar un nuevo servicio.
+                  El administrador te acaba de asignar una nueva sesión.
                 </p>
               </div>
             </div>
@@ -227,15 +228,18 @@ export default function TechnicianAgendaPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-lg font-bold text-foreground leading-tight">
-                      {activeService?.name || "Servicio AutoSpa"}
+                      {activeService?.name || "Sesión AutoSpa"}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Cliente: <strong>{activeClient?.full_name || "Cliente"}</strong>
                     </p>
                   </div>
-                  <Badge variant={activeOrder.status === "in_progress" ? "default" : "secondary"}>
-                    {getStatusLabel(activeOrder.status)}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <Badge variant={activeOrder.status === "in_progress" ? "default" : "secondary"}>
+                      {getStatusLabel(activeOrder.status)}
+                    </Badge>
+                    <TimeRemainingBadge booking={activeOrder} size="sm" />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 text-xs text-muted-foreground pt-1 border-t">
@@ -300,36 +304,46 @@ export default function TechnicianAgendaPage() {
                 const svc = services.find((s) => s.id === order.service_id);
                 const cl = clients.find((c) => c.id === order.customer_id);
                 const addr = addresses.find((a) => a.id === order.address_id) || (cl?.addresses && cl.addresses[0]);
+                const timeStatus = getBookingTimeStatus(order);
 
                 return (
                   <Link key={order.id} href="/tech/current" className="block">
                     <Card
                       className={cn(
                         "transition-all hover:shadow-xs",
+                        timeStatus.isOverdue ? "border-rose-500/50 bg-rose-500/[0.04]" : "",
                         isCurrent ? "border-primary/50 bg-primary/5 shadow-2xs" : "",
                         isCompleted ? "opacity-75 bg-muted/30" : ""
                       )}
                     >
                       <CardContent className="p-3.5 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex flex-col items-center justify-center bg-background border rounded-lg p-2 min-w-[65px] shrink-0">
-                            <Clock className="h-3.5 w-3.5 text-primary mb-0.5" />
+                          <div className={cn(
+                            "flex flex-col items-center justify-center bg-background border rounded-lg p-2 min-w-[65px] shrink-0",
+                            timeStatus.isOverdue && "border-rose-500/40"
+                          )}>
+                            <Clock className={cn("h-3.5 w-3.5 mb-0.5", timeStatus.isOverdue ? "text-rose-500" : "text-primary")} />
                             <span className="text-[10px] font-bold text-foreground text-center leading-tight">
                               {formatTimeSlot(order.scheduled_time_slot).split("-")[0]}
                             </span>
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <h4 className="font-semibold text-sm text-foreground truncate">
-                              {svc?.name || "Servicio AutoSpa"}
-                            </h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="font-semibold text-sm text-foreground truncate">
+                                {svc?.name || "Sesión AutoSpa"}
+                              </h4>
+                              {timeStatus.isOverdue && (
+                                <TimeRemainingBadge booking={order} size="sm" />
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground truncate">
                               {cl?.full_name || "Cliente"} {addr?.municipality ? `• ${addr.municipality}` : ""}
                             </p>
                           </div>
                         </div>
 
-                        <div className="shrink-0">
+                        <div className="shrink-0 flex flex-col items-end gap-1">
                           <Badge variant={isCompleted ? "outline" : isCurrent ? "default" : "secondary"} className="text-[10px]">
                             {getStatusLabel(order.status)}
                           </Badge>

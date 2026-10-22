@@ -25,8 +25,10 @@ import {
   playAudioChime,
   isTimeSlotInThePast,
   normalizeTimeSlotId,
-  canClientRescheduleBooking
+  canClientRescheduleBooking,
+  getBookingTimeStatus
 } from '@/lib/utils';
+import { TimeRemainingBadge } from '@/components/shared/time-remaining-badge';
 import { showSystemNotification } from '@/lib/notifications';
 import { NotificationPermissionPrompt } from '@/components/shared/notification-permission-prompt';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -159,7 +161,15 @@ export default function ClientReservationDetailPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings', filter: `id=eq.${id}` },
-        async () => {
+        async (payload: any) => {
+          if (payload.eventType === 'DELETE') {
+            setBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
+            setLiveAlert({
+              title: 'Orden Cancelada / Eliminada',
+              message: 'Esta reserva ha sido cancelada por el Administrador.',
+            });
+            return;
+          }
           const fresh = await fetchBookingById(id);
           if (fresh) {
             setBooking(fresh);
@@ -171,11 +181,25 @@ export default function ClientReservationDetailPage() {
               url: `/client/reservations/${id}`,
             });
             setTimeout(() => setLiveAlert(null), 10000);
+          } else {
+            setBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
+            setLiveAlert({
+              title: 'Orden Cancelada / Eliminada',
+              message: 'Esta reserva ha sido cancelada por el Administrador.',
+            });
           }
         }
       )
       .on('broadcast', { event: 'client_booking_updated' }, async (payload: any) => {
         if (!payload.payload?.bookingId || payload.payload?.bookingId === id) {
+          if (payload.payload?.status === 'cancelled') {
+            setBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
+            setLiveAlert({
+              title: 'Orden Cancelada / Eliminada',
+              message: 'Esta reserva ha sido cancelada por el Administrador.',
+            });
+            return;
+          }
           const fresh = await fetchBookingById(id);
           if (fresh) {
             setBooking(fresh);
@@ -291,13 +315,13 @@ export default function ClientReservationDetailPage() {
   const isCompleted = ['completed', 'invoiced', 'closed'].includes(booking.status);
 
   const timeline = [
-    { status: 'Reserva Solicitada', desc: 'Registro inicial completado', done: true },
+    { status: 'Sesión Solicitada', desc: 'Registro inicial completado', done: true },
     { status: 'Pago Verificado & Confirmada', desc: isConfirmed ? 'Aprobada por el equipo' : 'En espera de validación de pago', done: isConfirmed },
     { status: 'Técnico Especialista Asignado', desc: isAssigned ? 'Especialista preparado' : 'Pendiente de asignación', done: isAssigned },
-    { status: 'Técnico en Camino', desc: isEnRoute ? 'En ruta hacia tu dirección' : 'A la espera del traslado', done: isEnRoute },
-    { status: 'Llegada al Sitio', desc: isArrived ? 'Especialista en ubicación' : 'Por llegar', done: isArrived },
-    { status: 'Lavado en Proceso', desc: isInProgress ? 'Vehículo siendo atendido' : 'Pendiente de inicio', done: isInProgress },
-    { status: 'Servicio Completado', desc: isCompleted ? '¡Vehículo listo e impecable!' : 'Pendiente de finalización', done: isCompleted },
+    { status: 'Técnico en Camino', desc: isEnRoute ? 'En ruta hacia la ubicación del paciente' : 'A la espera del traslado', done: isEnRoute },
+    { status: 'Llegada al Sitio', desc: isArrived ? 'Especialista en ubicación del paciente' : 'Por llegar', done: isArrived },
+    { status: 'Sesión en Proceso', desc: isInProgress ? 'Paciente siendo atendido' : 'Pendiente de inicio', done: isInProgress },
+    { status: 'Sesión Completada', desc: isCompleted ? '¡Paciente listo e impecable!' : 'Pendiente de finalización', done: isCompleted },
   ];
 
   return (
@@ -350,10 +374,10 @@ export default function ClientReservationDetailPage() {
               </div>
               <div className="flex-1">
                 <p className="text-xs font-bold text-foreground">
-                  {booking.status === 'en_route' && '🚗 Tu técnico va en camino hacia tu dirección'}
-                  {booking.status === 'arrived' && '📍 Tu técnico ha llegado al lugar acordado'}
-                  {booking.status === 'in_progress' && '🫧 Servicio de lavado en proceso'}
-                  {booking.status === 'quality_check' && '🔍 Inspección final de calidad'}
+                  {booking.status === 'en_route' && '🚗 Tu técnico va en camino hacia la ubicación del paciente'}
+                  {booking.status === 'arrived' && '📍 Tu técnico ha llegado al lugar del paciente'}
+                  {booking.status === 'in_progress' && '🫧 Sesión de cuidado en proceso'}
+                  {booking.status === 'quality_check' && '🔍 Inspección final de calidad del paciente'}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   La información se actualiza automáticamente en tiempo real.
@@ -363,10 +387,51 @@ export default function ClientReservationDetailPage() {
           </Card>
         )}
 
-        <div className="flex justify-center mb-4">
+        {/* Alerta de Retraso Crítico para el Cliente */}
+        {(() => {
+          const timeStatus = getBookingTimeStatus(booking);
+          if (!timeStatus.isOverdue) return null;
+
+          return (
+            <Card className="border-2 border-rose-500/50 bg-rose-500/10 shadow-lg animate-pulse">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-rose-500/20 text-rose-500 rounded-lg shrink-0 mt-0.5">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-extrabold text-rose-500 uppercase tracking-wide">
+                      Horario Expirado / En Revisión con Soporte
+                    </h4>
+                    <p className="text-xs text-foreground mt-1 leading-relaxed">
+                      El horario previsto para la sesión de tu paciente ({booking.scheduled_date} • {formatTimeSlot(booking.scheduled_time_slot)}) ya finalizó. 
+                      Nuestro equipo de <strong>Administración y Soporte</strong> está al tanto de la incidencia. 
+                      Por favor, contáctanos directamente para reasignar la hora o reprogramar tu sesión sin inconvenientes.
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  href={`https://wa.me/584241979461?text=${encodeURIComponent(`¡Hola AutoSpa! Tengo una consulta sobre mi orden ${booking.code}. El horario previsto (${booking.scheduled_date} - ${formatTimeSlot(booking.scheduled_time_slot)}) ya pasó y requiero información o reagendar.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full"
+                >
+                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 gap-2 shadow-sm cursor-pointer">
+                    <MessageCircle className="h-4 w-4" />
+                    Escribir a Administración / Soporte (WhatsApp)
+                  </Button>
+                </a>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        <div className="flex flex-col items-center justify-center gap-2 mb-4">
           <div className="scale-110">
             <StatusBadge status={booking.status} />
           </div>
+          <TimeRemainingBadge booking={booking} size="md" />
         </div>
 
         {/* Reporte de Pago y Cuentas */}
@@ -393,11 +458,11 @@ export default function ClientReservationDetailPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-primary" /> Servicio
+              <Clock className="w-4 h-4 text-primary" /> Sesión
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="font-semibold text-base">{service?.name || 'Servicio de Lavado'}</div>
+            <div className="font-semibold text-base">{service?.name || 'Sesión de Cuidado'}</div>
             <div className="text-xs text-muted-foreground mt-0.5">
               Duración est.: {booking.estimated_duration} min
             </div>
@@ -407,7 +472,7 @@ export default function ClientReservationDetailPage() {
         {vehicle && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Vehículo</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Paciente</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="font-medium">{vehicle.brand} {vehicle.model}</div>
@@ -435,11 +500,14 @@ export default function ClientReservationDetailPage() {
         )}
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Horario</CardTitle>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm text-muted-foreground flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-primary" /> Horario
+            </CardTitle>
+            <TimeRemainingBadge booking={booking} size="sm" />
           </CardHeader>
           <CardContent>
-            <div className="font-medium">{booking.scheduled_date}</div>
+            <div className="font-semibold text-base">{booking.scheduled_date}</div>
             <div className="text-sm text-muted-foreground">{formatTimeSlot(booking.scheduled_time_slot)}</div>
           </CardContent>
         </Card>
@@ -530,11 +598,16 @@ export default function ClientReservationDetailPage() {
             )}
           </div>
         )}
-        <Link href="https://wa.me/584121234567" target="_blank" className="block w-full">
-          <Button variant="secondary" className="w-full bg-green-500/10 text-green-700 hover:bg-green-500/20 border-green-500/20 h-11 cursor-pointer">
-            <MessageCircle className="w-4 h-4 mr-2" /> Contactar Soporte
+        <a 
+          href={`https://wa.me/584241979461?text=${encodeURIComponent(`¡Hola AutoSpa! Necesito asistencia con mi orden ${booking.code}.`)}`}
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="block w-full"
+        >
+          <Button variant="secondary" className="w-full bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 h-11 cursor-pointer font-bold">
+            <MessageCircle className="w-4 h-4 mr-2" /> Contactar a Soporte / Administración
           </Button>
-        </Link>
+        </a>
       </div>
 
       {/* Modal Reprogramar Reserva */}

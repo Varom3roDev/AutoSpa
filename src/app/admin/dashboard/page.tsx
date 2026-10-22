@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { fetchBookings, fetchServices, fetchAdminTechnicians, fetchAdminClients } from '@/lib/supabase/api';
 import { createClient } from '@/lib/supabase/client';
-import { formatCurrency, formatDate, getLocalDateString, formatTimeSlot, getStatusLabel, playAudioChime } from '@/lib/utils';
+import { formatCurrency, formatDate, getLocalDateString, formatTimeSlot, getStatusLabel, playAudioChime, getBookingTimeStatus } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { TimeRemainingBadge } from '@/components/shared/time-remaining-badge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, DollarSign, Loader, Clock, Users, TrendingUp, XCircle, ArrowRight, ChevronRight, Wrench, Bell, Sparkles } from 'lucide-react';
+import { Calendar, DollarSign, Loader, Clock, Users, TrendingUp, XCircle, ArrowRight, ChevronRight, Wrench, Bell, Sparkles, AlertTriangle } from 'lucide-react';
 import { showSystemNotification } from '@/lib/notifications';
 import { NotificationPermissionPrompt } from '@/components/shared/notification-permission-prompt';
 import type { Booking, Service, User, Customer, DashboardStats } from '@/lib/types';
@@ -65,25 +66,25 @@ export default function AdminDashboardPage() {
           if (payload.eventType === 'INSERT') {
             const code = payload.new?.code || 'Nueva Reserva';
             setAdminAlert({
-              title: '¡Nueva Reserva Recibida en Tiempo Real!',
+              title: '¡Nueva Sesión Recibida en Tiempo Real!',
               code,
-              message: 'Un cliente acaba de agendar un nuevo servicio.',
+              message: 'Un cliente acaba de agendar una nueva sesión.',
               type: 'new',
             });
-            showSystemNotification('¡Nueva Reserva Recibida!', {
-              body: `Orden ${code}: Un cliente acaba de agendar un nuevo servicio.`,
+            showSystemNotification('¡Nueva Sesión Recibida!', {
+              body: `Orden ${code}: Un cliente acaba de agendar una nueva sesión.`,
               url: '/admin/orders',
             });
           } else if (payload.eventType === 'UPDATE') {
             const code = payload.new?.code || 'Orden';
             const statusLabel = getStatusLabel(payload.new?.status || '');
             setAdminAlert({
-              title: '¡Actualización de Servicio en Tiempo Real!',
+              title: '¡Actualización de Sesión en Tiempo Real!',
               code,
               message: `El técnico o sistema cambió el estado a: ${statusLabel}`,
               type: 'update',
             });
-            showSystemNotification('¡Actualización de Servicio!', {
+            showSystemNotification('¡Actualización de Sesión!', {
               body: `Orden ${code}: Estado cambiado a ${statusLabel}.`,
               url: '/admin/orders',
             });
@@ -96,13 +97,13 @@ export default function AdminDashboardPage() {
         playAudioChime('prominent');
         const code = payload.payload?.code || 'Nueva Reserva';
         setAdminAlert({
-          title: '¡Nueva Reserva Recibida en Tiempo Real!',
+          title: '¡Nueva Sesión Recibida en Tiempo Real!',
           code,
-          message: 'Un cliente acaba de agendar un nuevo servicio.',
+          message: 'Un cliente acaba de agendar una nueva sesión.',
           type: 'new',
         });
-        showSystemNotification('¡Nueva Reserva Recibida!', {
-          body: `Orden ${code}: Un cliente acaba de agendar un nuevo servicio.`,
+        showSystemNotification('¡Nueva Sesión Recibida!', {
+          body: `Orden ${code}: Un cliente acaba de agendar una nueva sesión.`,
           url: '/admin/orders',
         });
         setTimeout(() => setAdminAlert(null), 9000);
@@ -113,12 +114,12 @@ export default function AdminDashboardPage() {
         const code = payload.payload?.code || 'Orden';
         const statusLabel = payload.payload?.status ? getStatusLabel(payload.payload.status) : 'actualizada';
         setAdminAlert({
-          title: '¡Actualización de Servicio en Tiempo Real!',
+          title: '¡Actualización de Sesión en Tiempo Real!',
           code,
           message: `El técnico cambió el estado a: ${statusLabel}`,
           type: 'update',
         });
-        showSystemNotification('¡Actualización de Servicio!', {
+        showSystemNotification('¡Actualización de Sesión!', {
           body: `Orden ${code}: Estado cambiado a ${statusLabel}.`,
           url: '/admin/orders',
         });
@@ -143,6 +144,7 @@ export default function AdminDashboardPage() {
     const pending = bookings.filter(b => ['pending_payment', 'confirmed'].includes(b.status)).length;
     const cancelled = bookings.filter(b => b.status === 'cancelled' && b.scheduled_date === todayStr).length;
     const completedToday = completedList.filter(b => b.scheduled_date === todayStr).length;
+    const overdueCount = bookings.filter(b => getBookingTimeStatus(b).isOverdue).length;
     const avgTicket = completedList.length > 0 
       ? completedList.reduce((sum, b) => sum + (b.total_usd || 0), 0) / completedList.length 
       : 0;
@@ -156,6 +158,7 @@ export default function AdminDashboardPage() {
       active_technicians: technicians.length,
       completed_today: completedToday,
       avg_ticket_usd: avgTicket,
+      overdue_bookings: overdueCount,
     };
   }, [bookings, todayStr, technicians.length]);
 
@@ -212,12 +215,37 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Stats Grid - 4 Fichas Principales Modernas */}
+        {/* Banner de Órdenes Retrasadas / Vencidas */}
+        {(stats.overdue_bookings ?? 0) > 0 && (
+          <Link href="/admin/orders" className="block">
+            <div className="p-4 rounded-xl border-2 border-rose-500/50 bg-rose-500/10 text-foreground flex items-center justify-between shadow-xl animate-pulse hover:bg-rose-500/15 transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-500 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-extrabold text-sm text-rose-500 flex items-center gap-2 uppercase tracking-wide">
+                    <span>¡Alerta Crítica: {stats.overdue_bookings} {stats.overdue_bookings === 1 ? 'Orden Vencida' : 'Órdenes Vencidas'} sin Completar!</span>
+                  </p>
+                  <p className="text-xs text-foreground/90 mt-0.5">
+                    Hay sesiones cuyo horario programado ya expiró. Toca aquí para ver la lista y reasignar técnico o reagendar de inmediato.
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" className="border-rose-500/40 text-rose-500 hover:bg-rose-500/20 font-bold text-xs shrink-0 cursor-pointer">
+                Gestionar Vencidas
+                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </div>
+          </Link>
+        )}
+
+        {/* Stats Grid - Fichas Principales Modernas */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="bg-[#12161C] border-[#2B313A] hover:border-sky-500/50 transition-all duration-300 shadow-md rounded-2xl relative overflow-hidden group">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-sky-500/60 to-transparent" />
             <CardHeader className="flex flex-row items-center justify-between pb-2 p-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Servicios Hoy</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sesiones Hoy</span>
               <div className="p-2 bg-sky-500/15 text-sky-400 border border-sky-500/30 rounded-xl group-hover:scale-110 transition-transform">
                 <Calendar className="h-4 w-4" />
               </div>
@@ -351,7 +379,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" />
-              <span>Próximos Servicios</span>
+              <span>Próximas Sesiones</span>
             </h2>
             <Link href="/admin/orders">
               <Button variant="ghost" size="sm" className="gap-1 text-primary hover:text-primary/80 font-semibold cursor-pointer">
@@ -375,7 +403,7 @@ export default function AdminDashboardPage() {
                             <span className="font-mono text-xs font-bold text-primary bg-black/40 px-2 py-0.5 rounded border border-[#2B313A]">{booking.code}</span>
                             <StatusBadge status={booking.status} />
                           </div>
-                          <p className="font-semibold text-sm text-white truncate">{service?.name || 'Servicio de Lavado'}</p>
+                          <p className="font-semibold text-sm text-white truncate">{service?.name || 'Sesión AutoSpa'}</p>
                           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                             <Clock className="w-3.5 h-3.5 text-primary/70 shrink-0" />
                             <span>{booking.scheduled_date} • {formatTimeSlot(booking.scheduled_time_slot)}</span>
@@ -393,7 +421,7 @@ export default function AdminDashboardPage() {
             ) : (
               <Card className="border-dashed border-[#2B313A] bg-[#12161C]/50 rounded-2xl">
                 <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground text-sm">No hay servicios pendientes</p>
+                  <p className="text-muted-foreground text-sm">No hay sesiones pendientes</p>
                 </CardContent>
               </Card>
             )}

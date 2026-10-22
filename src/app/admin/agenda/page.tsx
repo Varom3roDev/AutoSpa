@@ -13,7 +13,7 @@ import {
   fetchAdminClients,
   fetchAdminTechnicians,
 } from "@/lib/supabase/api";
-import { formatCurrency, formatTimeSlot, getLocalDateString } from "@/lib/utils";
+import { formatCurrency, formatTimeSlot, getLocalDateString, getTimeSlotStartMinutes } from "@/lib/utils";
 import type { Booking, Service, Customer, User as UserType } from "@/lib/types";
 import {
   Clock,
@@ -22,7 +22,9 @@ import {
   Calendar,
   CalendarDays,
   Wrench,
+  Plus,
 } from "lucide-react";
+import { AdminCreateBookingModal } from "@/components/admin/admin-create-booking-modal";
 
 export default function AdminAgendaPage() {
   const [selectedDate, setSelectedDate] = useState(
@@ -33,6 +35,7 @@ export default function AdminAgendaPage() {
   const [clients, setClients] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Generate next 7 days based on current local date
   const days = useMemo(() => {
@@ -48,21 +51,22 @@ export default function AdminAgendaPage() {
 
   const todayStr = useMemo(() => getLocalDateString(), []);
 
+  async function loadAgendaData() {
+    setIsLoading(true);
+    const [bData, sData, cData, tData] = await Promise.all([
+      fetchBookings(),
+      fetchServices(),
+      fetchAdminClients(),
+      fetchAdminTechnicians(),
+    ]);
+    setBookings(bData);
+    setServices(sData);
+    setClients(cData);
+    setTechnicians(tData);
+    setIsLoading(false);
+  }
+
   useEffect(() => {
-    async function loadAgendaData() {
-      setIsLoading(true);
-      const [bData, sData, cData, tData] = await Promise.all([
-        fetchBookings(),
-        fetchServices(),
-        fetchAdminClients(),
-        fetchAdminTechnicians(),
-      ]);
-      setBookings(bData);
-      setServices(sData);
-      setClients(cData);
-      setTechnicians(tData);
-      setIsLoading(false);
-    }
     loadAgendaData();
   }, []);
 
@@ -70,7 +74,7 @@ export default function AdminAgendaPage() {
   const dayBookings = useMemo(() => {
     return bookings
       .filter((b) => b.scheduled_date === selectedDate && b.status !== "cancelled")
-      .sort((a, b) => (a.scheduled_time_slot || "").localeCompare(b.scheduled_time_slot || ""));
+      .sort((a, b) => getTimeSlotStartMinutes(a.scheduled_time_slot) - getTimeSlotStartMinutes(b.scheduled_time_slot));
   }, [bookings, selectedDate]);
 
   const assignedTechsCount = useMemo(() => {
@@ -86,6 +90,16 @@ export default function AdminAgendaPage() {
     <div className="min-h-dvh bg-background pb-28">
       <PageHeader
         title="Agenda"
+        action={
+          <Button
+            size="sm"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 flex items-center gap-1.5 shadow-md shadow-primary/20 text-xs cursor-pointer h-9 px-3"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Programar Sesión</span>
+          </Button>
+        }
       />
 
       {/* Day selector - horizontal scroll */}
@@ -131,7 +145,7 @@ export default function AdminAgendaPage() {
       <div className="px-4 pt-3 flex items-center gap-2">
         <Badge variant="secondary" className="text-xs">
           <CalendarDays className="h-3.5 w-3.5 mr-1" />
-          {dayBookings.length} servicio{dayBookings.length !== 1 ? "s" : ""}
+          {dayBookings.length} sesión{dayBookings.length !== 1 ? "es" : ""}
         </Badge>
         <Badge variant="secondary" className="text-xs">
           <Wrench className="h-3.5 w-3.5 mr-1" />
@@ -172,7 +186,7 @@ export default function AdminAgendaPage() {
                     </div>
 
                     <h3 className="font-semibold text-base mb-1">
-                      {service?.name || "Servicio de Lavado"}
+                      {service?.name || "Sesión AutoSpa"}
                     </h3>
 
                     <div className="mt-2 space-y-1 text-xs text-muted-foreground">
@@ -206,7 +220,7 @@ export default function AdminAgendaPage() {
             <CardContent className="p-8 text-center">
               <Calendar className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-foreground font-medium">
-                Sin servicios programados
+                Sin sesiones programadas
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 No hay reservas agendadas para el día seleccionado.
@@ -217,6 +231,15 @@ export default function AdminAgendaPage() {
       </div>
 
       <div className="h-24" />
+
+      {/* Modal para Programar Servicio Directo */}
+      <AdminCreateBookingModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => {
+          loadAgendaData();
+        }}
+      />
     </div>
   );
 }

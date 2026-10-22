@@ -17,7 +17,8 @@ import {
   fetchCustomerAddresses,
   fetchAppSettings,
 } from "@/lib/supabase/api";
-import { formatCurrency, getStatusLabel, formatTimeSlot, playAudioChime } from "@/lib/utils";
+import { formatCurrency, getStatusLabel, formatTimeSlot, playAudioChime, getBookingTimeStatus } from "@/lib/utils";
+import { TimeRemainingBadge } from "@/components/shared/time-remaining-badge";
 import { createClient } from "@/lib/supabase/client";
 import { showSystemNotification } from "@/lib/notifications";
 import { NotificationPermissionPrompt } from "@/components/shared/notification-permission-prompt";
@@ -119,6 +120,15 @@ export default function TechnicianCurrentOrderPage() {
             url: "/tech/current",
           });
           setTimeout(() => setNewOrderAlert(null), 8000);
+        }
+      })
+      .on("broadcast", { event: "tech_order_updated" }, (payload: any) => {
+        loadCurrentOrder();
+        if (payload.payload?.status === 'cancelled') {
+          showSystemNotification("Orden Cancelada", {
+            body: `La orden ${payload.payload?.code || ''} fue cancelada por el administrador.`,
+            url: "/tech/agenda",
+          });
         }
       })
       .subscribe();
@@ -350,16 +360,54 @@ export default function TechnicianCurrentOrderPage() {
             </button>
           </div>
         )}
+        {/* Alerta de Retraso si la orden expiró */}
+        {(() => {
+          const timeStatus = getBookingTimeStatus(activeBooking);
+          if (!timeStatus.isOverdue) return null;
+
+          return (
+            <div className="bg-rose-500/15 border-2 border-rose-500/50 rounded-xl p-4 shadow-lg flex flex-col gap-2.5 animate-pulse">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-rose-500/20 text-rose-500 rounded-lg shrink-0 mt-0.5">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-500">
+                    ¡Atención: Horario de Turno Expirado ({timeStatus.timeRemainingText})!
+                  </h4>
+                  <p className="text-xs text-foreground mt-0.5 leading-relaxed">
+                    Esta orden estaba programada para el <strong>{activeBooking.scheduled_date} ({formatTimeSlot(activeBooking.scheduled_time_slot)})</strong>. Si se presentó algún retraso o eventualidad, comunícate de inmediato con el Administrador.
+                  </p>
+                </div>
+              </div>
+              <a
+                href={`https://wa.me/584241979461?text=${encodeURIComponent(`¡Hola Administrador! Te escribe el técnico sobre la orden ${activeBooking.code} que está retrasada/vencida. Reporte de estado:`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full"
+              >
+                <Button size="sm" className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-9 gap-1.5 shadow-sm">
+                  <MessageSquare className="h-4 w-4" />
+                  Notificar Novedad al Administrador (WhatsApp)
+                </Button>
+              </a>
+            </div>
+          );
+        })()}
+
         {/* Step Progress Bar Header */}
         <Card className="border-primary/20 bg-primary/5 overflow-hidden">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <span className="text-xs font-bold text-primary flex items-center gap-1.5">
                 <Wrench className="h-4 w-4" /> Estado Operativo
               </span>
-              <Badge variant={status === "in_progress" ? "default" : "secondary"}>
-                {getStatusLabel(status)}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <TimeRemainingBadge booking={activeBooking} size="sm" />
+                <Badge variant={status === "in_progress" ? "default" : "secondary"}>
+                  {getStatusLabel(status)}
+                </Badge>
+              </div>
             </div>
 
             {/* Workflow Action Button based on current status */}
@@ -393,10 +441,10 @@ export default function TechnicianCurrentOrderPage() {
                   size="lg"
                   className="w-full h-14 text-base font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md gap-2"
                   disabled={isUpdating}
-                  onClick={() => handleStatusTransition("in_progress", "Servicio de lavado iniciado")}
+                  onClick={() => handleStatusTransition("in_progress", "Sesión de cuidado iniciada")}
                 >
                   <Play className="h-5 w-5" />
-                  {isUpdating ? "Actualizando..." : "3. Iniciar Servicio de Lavado"}
+                  {isUpdating ? "Actualizando..." : "3. Iniciar Sesión con Paciente"}
                 </Button>
               )}
 
@@ -405,10 +453,10 @@ export default function TechnicianCurrentOrderPage() {
                   size="lg"
                   className="w-full h-14 text-base font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md gap-2"
                   disabled={isUpdating}
-                  onClick={() => handleStatusTransition("quality_check", "Lavado completado, pasando a control de calidad")}
+                  onClick={() => handleStatusTransition("quality_check", "Sesión completada, pasando a control de calidad del paciente")}
                 >
                   <Sparkles className="h-5 w-5" />
-                  {isUpdating ? "Actualizando..." : "4. Lavado Listo (Control de Calidad)"}
+                  {isUpdating ? "Actualizando..." : "4. Sesión Lista (Control de Calidad)"}
                 </Button>
               )}
 
@@ -417,17 +465,17 @@ export default function TechnicianCurrentOrderPage() {
                   size="lg"
                   className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md gap-2"
                   disabled={isUpdating || !allChecked}
-                  onClick={() => handleStatusTransition("completed", "Servicio completado y verificado con éxito")}
+                  onClick={() => handleStatusTransition("completed", "Sesión completada y verificada con éxito")}
                 >
                   <CheckCircle2 className="h-5 w-5" />
-                  {isUpdating ? "Finalizando..." : "5. Finalizar Servicio y Cobro"}
+                  {isUpdating ? "Finalizando..." : "5. Finalizar Sesión y Cobro"}
                 </Button>
               )}
 
               {status === "completed" && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
                   <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center justify-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4" /> ¡Servicio completado con éxito!
+                    <CheckCircle2 className="h-4 w-4" /> ¡Sesión completada con éxito!
                   </p>
                 </div>
               )}
@@ -452,28 +500,18 @@ export default function TechnicianCurrentOrderPage() {
                 <p className="text-xs text-muted-foreground">{client?.phone || "+58 (Caracas)"}</p>
               </div>
 
-              {/* Communication Buttons */}
+              {/* Botón de Comunicación con el Administrador */}
               <div className="flex items-center gap-2">
-                {cleanPhone && (
-                  <a
-                    href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`¡Hola! Soy tu técnico de AutoSpa. Ya me encuentro coordinando tu servicio de lavado.`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-9 w-9 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-500/20 transition-colors"
-                    title="WhatsApp"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                  </a>
-                )}
-                {client?.phone && (
-                  <a
-                    href={`tel:${client.phone}`}
-                    className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors"
-                    title="Llamar"
-                  >
-                    <Phone className="h-4 w-4" />
-                  </a>
-                )}
+                <a
+                  href={`https://wa.me/584241979461?text=${encodeURIComponent(`¡Hola Administrador! Te escribe el técnico respecto a la orden ${activeBooking.code} (Cliente: ${client?.full_name || 'AutoSpa'}). Novedad:`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold border border-emerald-500/20 transition-colors"
+                  title="Contactar Administrador"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>Reportar a Admin</span>
+                </a>
               </div>
             </div>
 
@@ -516,7 +554,7 @@ export default function TechnicianCurrentOrderPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-1.5">
-              <Car className="h-4 w-4 text-primary" /> Vehículo y Servicio
+              <Car className="h-4 w-4 text-primary" /> Paciente y Sesión
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -524,7 +562,7 @@ export default function TechnicianCurrentOrderPage() {
             <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between">
               <div>
                 <p className="font-bold text-sm text-foreground">
-                  {vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.year})` : "Vehículo registrado"}
+                  {vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.year})` : "Paciente registrado"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Color: {vehicle?.color || "N/A"} • Tipo: {vehicle?.type?.toUpperCase() || "SEDÁN"}
@@ -538,7 +576,7 @@ export default function TechnicianCurrentOrderPage() {
             {/* Service details */}
             <div className="space-y-1 text-xs">
               <div className="flex items-center justify-between font-semibold text-sm">
-                <span>{service?.name || "Servicio AutoSpa"}</span>
+                <span>{service?.name || "Sesión AutoSpa"}</span>
                 <span className="text-primary font-bold">
                   {formatCurrency(activeBooking.total_usd, "USD")} (~Bs. {(activeBooking.total_usd * rate).toFixed(2)})
                 </span>
@@ -552,15 +590,20 @@ export default function TechnicianCurrentOrderPage() {
             {activeBooking.addons && activeBooking.addons.length > 0 && (
               <div className="pt-2 border-t">
                 <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">
-                  Extras / Adicionales contratados:
+                  Sesiones Extras solicitadas (Inspección del Paciente):
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {activeBooking.addons.map((a, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-primary/10 text-primary font-medium"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-primary/10 text-primary font-medium"
                     >
-                      <Sparkles className="h-3 w-3" /> {a.name} (+${a.price_usd})
+                      <Sparkles className="h-3 w-3" /> {a.name}
+                      {a.quote_on_inspection || a.price_usd === 0 ? (
+                        <span className="text-amber-400 font-bold ml-1">(Cotizar bajo inspección)</span>
+                      ) : (
+                        <span className="ml-1">(+${a.price_usd})</span>
+                      )}
                     </span>
                   ))}
                 </div>

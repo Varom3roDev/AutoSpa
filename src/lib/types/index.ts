@@ -159,6 +159,7 @@ export interface ServiceAddon {
   price_by_vehicle_size: Record<VehicleSizeCategory, number> | null;
   duration_minutes: number;
   is_active: boolean;
+  quote_on_inspection?: boolean;
 }
 
 /**
@@ -169,6 +170,7 @@ export interface BookingAddon {
   name: string;
   price_usd: number;
   quantity: number;
+  quote_on_inspection?: boolean;
 }
 
 /**
@@ -315,6 +317,7 @@ export interface DashboardStats {
   cancelled_today: number;
   active_technicians: number;
   avg_ticket_usd: number;
+  overdue_bookings?: number;
 }
 
 /**

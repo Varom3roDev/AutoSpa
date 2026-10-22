@@ -85,7 +85,7 @@ export function VehicleCard({ vehicle, onEdit, onSelect, selected, showActions }
                 className="h-10 w-10 rounded-full"
               >
                 <Edit className="w-5 h-5 text-muted-foreground" />
-                <span className="sr-only">Editar vehículo</span>
+                <span className="sr-only">Editar paciente</span>
               </Button>
             </div>
           )}

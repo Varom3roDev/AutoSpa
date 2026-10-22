@@ -23,7 +23,10 @@ import {
   insertCustomerAddress,
   insertBooking,
   fetchAppSettings,
-  fetchBookedTimeSlots
+  fetchBookedTimeSlots,
+  fetchDateAvailabilityDetails,
+  getCachedCustomerVehicles,
+  getCachedCustomerAddresses
 } from "@/lib/supabase/api";
 import { 
   cn, 
@@ -32,7 +35,13 @@ import {
   getLocalDateString, 
   isTimeSlotInThePast, 
   normalizeTimeSlotId,
-  getTimeSlotUnavailabilityReason 
+  getTimeSlotUnavailabilityReason,
+  calculateSessionDuration,
+  generateDynamicTimeSlots,
+  parseTimeSlotRange,
+  minutesToTimeString,
+  formatTimeSlot,
+  type DynamicSlot
 } from "@/lib/utils";
 import { BOOKING_STEPS } from "@/lib/constants";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,7 +77,8 @@ import {
   ArrowRight,
   ChevronRight,
   AlertCircle,
-  Home
+  Home,
+  Loader2
 } from "lucide-react";
 import type { Vehicle, VehicleType, VehicleSizeCategory, Service, ServiceAddon, CustomerAddress } from "@/lib/types";
 
@@ -112,10 +122,17 @@ export default function BookingPage() {
   } = useBookingState();
 
   const [bookingCode, setBookingCode] = useState("");
-  const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
+  const [vehiclesList, setVehiclesList] = useState<Vehicle[]>(() => getCachedCustomerVehicles());
   const [servicesList, setServicesList] = useState<Service[]>(SERVICES);
   const [addonsList, setAddonsList] = useState<ServiceAddon[]>(ADDONS);
-  const [addressesList, setAddressesList] = useState<CustomerAddress[]>([]);
+  const [addressesList, setAddressesList] = useState<CustomerAddress[]>(() => getCachedCustomerAddresses());
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const v = getCachedCustomerVehicles();
+      return v.length === 0;
+    }
+    return true;
+  });
   const [appSettings, setAppSettings] = useState<any>(null);
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<string>("sedan");
@@ -129,26 +146,28 @@ export default function BookingPage() {
   const [addrLine, setAddrLine] = useState("");
   const [addrReference, setAddrReference] = useState("");
   const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [dateActiveBookings, setDateActiveBookings] = useState<Array<{ id: string; slot: string }>>([]);
 
-  // Load booked time slots whenever the scheduled date changes
+  // Load booked time slots and active reservations whenever the scheduled date changes
   useEffect(() => {
     let isMounted = true;
     async function loadSlotAvailability() {
       const chosenDate = state.scheduledDate || next7Days[0];
       setIsLoadingSlots(true);
-      const occupied = await fetchBookedTimeSlots(chosenDate);
+      const details = await fetchDateAvailabilityDetails(chosenDate);
       if (isMounted) {
-        setBookedSlots(occupied);
+        setBookedSlots(details.bookedSlots);
+        setDateActiveBookings(details.activeBookings);
         setIsLoadingSlots(false);
 
         // Si el turno que estaba seleccionado ya está ocupado o en el pasado, desmarcarlo
         if (state.scheduledTimeSlot) {
-          const norm = normalizeTimeSlotId(state.scheduledTimeSlot);
-          const slotObj = TIME_SLOTS.find((s) => s.id === norm);
-          const isPast = slotObj ? isTimeSlotInThePast(slotObj.start_time, chosenDate) : false;
-          const isOccupied = occupied.includes(norm);
-          if (isPast || isOccupied) {
-            setSchedule(chosenDate, "");
+          const range = parseTimeSlotRange(state.scheduledTimeSlot);
+          if (range) {
+            const isPast = isTimeSlotInThePast(minutesToTimeString(range.startMinutes), chosenDate, 60);
+            if (isPast) {
+              setSchedule(chosenDate, "");
+            }
           }
         }
       }
@@ -162,18 +181,22 @@ export default function BookingPage() {
   // Load live data from Supabase & local catalog
   useEffect(() => {
     async function loadData() {
-      const [vData, sData, aData, addrData, settingsData] = await Promise.all([
-        fetchCustomerVehicles(user?.id),
-        fetchServices(),
-        fetchServiceAddons(),
-        fetchCustomerAddresses(user?.id),
-        fetchAppSettings(),
-      ]);
-      setVehiclesList(vData);
-      setServicesList(sData);
-      setAddonsList(aData);
-      setAddressesList(addrData);
-      setAppSettings(settingsData);
+      try {
+        const [vData, sData, aData, addrData, settingsData] = await Promise.all([
+          fetchCustomerVehicles(user?.id),
+          fetchServices(),
+          fetchServiceAddons(),
+          fetchCustomerAddresses(user?.id),
+          fetchAppSettings(),
+        ]);
+        setVehiclesList(vData);
+        setServicesList(sData);
+        setAddonsList(aData);
+        setAddressesList(addrData);
+        setAppSettings(settingsData);
+      } finally {
+        setIsLoadingData(false);
+      }
     }
     loadData();
 
@@ -304,19 +327,40 @@ export default function BookingPage() {
         return;
       }
 
-      // Validar que el turno no haya pasado en hora local Caracas (mínimo 2 horas de anticipación)
-      const slotObj = TIME_SLOTS.find(s => s.id === normSlot);
-      if (slotObj && isTimeSlotInThePast(slotObj.start_time, chosenDate, 120)) {
-        setBookingError("El turno seleccionado requiere al menos 2 horas de anticipación o ya no está disponible para hoy. Por favor regresa y selecciona un horario disponible.");
-        return;
+      // Validar que el turno no haya pasado en hora local Caracas (mínimo 60 minutos de anticipación)
+      const slotRange = parseTimeSlotRange(normSlot);
+      if (slotRange) {
+        const startStr = minutesToTimeString(slotRange.startMinutes);
+        if (isTimeSlotInThePast(startStr, chosenDate, 60)) {
+          setBookingError("El turno seleccionado ya no está disponible con el tiempo mínimo de anticipación (1 hora). Por favor regresa y selecciona un horario disponible.");
+          return;
+        }
       }
 
       // Validar disponibilidad en tiempo real con Supabase
-      const occupiedNow = await fetchBookedTimeSlots(chosenDate);
-      if (occupiedNow.includes(normSlot)) {
-        setBookingError("Lo sentimos, este turno acaba de ser reservado por otro cliente. Por favor selecciona otro horario.");
-        return;
+      const { activeBookings: currentActive } = await fetchDateAvailabilityDetails(chosenDate);
+      if (slotRange) {
+        const hasConflict = currentActive.some(b => {
+          const bRange = parseTimeSlotRange(b.slot);
+          if (!bRange) return false;
+          // Solapamiento directo
+          const directOverlap = !(slotRange.endMinutes <= bRange.startMinutes || slotRange.startMinutes >= bRange.endMinutes);
+          if (directOverlap) return true;
+          // Margen de traslado en moto (40 minutos)
+          if (slotRange.startMinutes >= bRange.endMinutes && slotRange.startMinutes < bRange.endMinutes + 40) return true;
+          if (slotRange.endMinutes <= bRange.startMinutes && bRange.startMinutes < slotRange.endMinutes + 40) return true;
+          return false;
+        });
+
+        if (hasConflict) {
+          setBookingError("Lo sentimos, este turno acaba de ser reservado o no cuenta con margen de traslado suficiente. Por favor selecciona otro horario.");
+          return;
+        }
       }
+
+      const selectedVehicle = state.vehicle;
+      const hasInspectionExtras = state.addons.some((a) => a.quote_on_inspection);
+      const calculatedDuration = calculateSessionDuration(selectedVehicle?.type, state.service?.id, hasInspectionExtras);
 
       const code = generateBookingCode();
       setBookingCode(code);
@@ -334,7 +378,7 @@ export default function BookingPage() {
           status: 'pending_payment',
           scheduled_date: state.scheduledDate,
           scheduled_time_slot: normSlot,
-          estimated_duration: state.service.base_duration_minutes,
+          estimated_duration: calculatedDuration || state.service.base_duration_minutes,
           subtotal_usd: pricing.subtotal,
           discount_usd: 0,
           tax_usd: 0,
@@ -345,8 +389,9 @@ export default function BookingPage() {
         }, state.addons.map(a => ({
           addon_id: a.id,
           name: a.name,
-          price_usd: a.price_by_vehicle_size?.[state.vehicle!.size_category] ?? a.price_usd,
+          price_usd: a.quote_on_inspection ? 0 : (a.price_by_vehicle_size?.[state.vehicle!.size_category] ?? a.price_usd),
           quantity: 1,
+          quote_on_inspection: a.quote_on_inspection,
         })));
 
         if (created?.id) {
@@ -368,20 +413,40 @@ export default function BookingPage() {
         return (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Selecciona tu vehículo</h2>
-              <p className="text-sm text-muted-foreground">Toca un vehículo para continuar o agrega uno con el botón (+)</p>
+              <h2 className="text-lg font-bold">Selecciona tu paciente</h2>
+              <p className="text-sm text-muted-foreground">Toca un paciente para continuar o registra uno nuevo con el botón (+)</p>
             </div>
-            {vehiclesList.length === 0 ? (
+            {isLoadingData && vehiclesList.length === 0 ? (
+              <div className="grid gap-3">
+                <Card className="border-border/40 bg-card/40 animate-pulse">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-primary/10 text-primary p-3 rounded-full">
+                        <Car className="h-6 w-6 opacity-60" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-4 w-36 bg-muted rounded animate-pulse" />
+                        <div className="h-3 w-28 bg-muted/60 rounded animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span>Cargando tus pacientes...</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : vehiclesList.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed rounded-xl bg-muted/20">
                 <div className="bg-primary/10 text-primary p-3 rounded-full mb-3">
                   <Car className="h-6 w-6" />
                 </div>
-                <p className="font-semibold text-sm mb-1">Aún no tienes vehículos registrados</p>
+                <p className="font-semibold text-sm mb-1">Aún no tienes pacientes registrados</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Agrega tu primer vehículo para continuar con la reserva.
+                  Registra tu primer paciente para continuar con la reserva.
                 </p>
                 <Button size="sm" onClick={() => setIsAddVehicleOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Agregar Vehículo
+                  <Plus className="h-4 w-4 mr-1.5" /> Registrar Paciente
                 </Button>
               </div>
             ) : (
@@ -403,9 +468,14 @@ export default function BookingPage() {
                         <div>
                           <p className="font-semibold text-base">{vehicle.brand} {vehicle.model}</p>
                           <p className="text-sm text-muted-foreground font-mono">{vehicle.plate} • {vehicle.color}</p>
-                          <Badge variant="secondary" className="mt-1 text-[11px] capitalize">
-                            {vehicle.type}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Badge variant="outline" className="text-[10px] uppercase border-primary/40 text-primary">
+                              Paciente
+                            </Badge>
+                            <Badge variant="secondary" className="text-[11px] capitalize">
+                              {vehicle.type === 'motorcycle' ? 'Moto' : (vehicle.size_category === 'large' || vehicle.size_category === 'xlarge' ? 'Camioneta' : 'Carro')}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -419,7 +489,7 @@ export default function BookingPage() {
                   className="w-full flex items-center justify-center gap-2 p-3.5 rounded-xl border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary font-medium text-sm transition-all cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Agregar otro vehículo</span>
+                  <span>Registrar otro paciente</span>
                 </button>
               </div>
             )}
@@ -428,43 +498,83 @@ export default function BookingPage() {
       
       case 1:
         if (!state.vehicle) return null;
+        const isMoto = state.vehicle.type === 'motorcycle';
+        const isCamioneta = state.vehicle.size_category === 'large' || state.vehicle.size_category === 'xlarge' || ['suv', 'pickup', 'van', 'truck'].includes(state.vehicle.type);
+        const patientTypeLabel = isMoto ? 'Moto' : isCamioneta ? 'Camioneta' : 'Carro';
+
+        // Filtrar sesiones según el tipo de paciente:
+        // Si es moto -> Solo MOTOS ($10)
+        // Si es carro o camioneta -> Solo GOLD 22K y GOLD 24K
+        const currentCatalog = servicesList.some(s => s.name.toUpperCase().includes('GOLD')) ? servicesList : SERVICES;
+        const filteredServices = currentCatalog.filter((service) => {
+          const isMotoService = service.id === 's_motos' || service.name.toUpperCase().includes('MOTO');
+          if (isMoto) {
+            return isMotoService;
+          } else {
+            return !isMotoService;
+          }
+        });
+
         return (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Selecciona un servicio</h2>
+              <h2 className="text-lg font-bold">Selecciona la sesión</h2>
               <p className="text-sm text-muted-foreground">
-                Tarifas ajustadas para tu {state.vehicle.brand} {state.vehicle.model}
+                Tarifas ajustadas para tu paciente {state.vehicle.brand} {state.vehicle.model} ({patientTypeLabel})
               </p>
             </div>
             <div className="grid gap-3">
-              {servicesList.map((service) => {
-                const price = service.price_by_vehicle_size[state.vehicle!.size_category] || service.base_price_usd;
+              {filteredServices.map((service) => {
+                let price = service.base_price_usd;
+                if (isMoto) {
+                  price = 10;
+                } else if (isCamioneta) {
+                  price = service.price_by_vehicle_size?.['large'] ?? (service.name.includes('24') ? 30 : 20);
+                } else {
+                  // Carro (Yaris, Corolla, Sedán, Compacto, Hatchback, etc.)
+                  price = service.price_by_vehicle_size?.['medium'] ?? (service.name.includes('24') ? 25 : 15);
+                }
+
                 const isSelected = state.service?.id === service.id;
                 return (
                   <Card 
                     key={service.id} 
                     className={cn(
-                      "cursor-pointer transition-all hover:border-primary active:scale-[0.98]", 
-                      isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : ""
+                      "cursor-pointer transition-all hover:border-primary active:scale-[0.98] overflow-hidden", 
+                      isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border/60"
                     )}
                     onClick={() => handleSelectService(service)}
                   >
-                    <CardContent className="p-4 flex flex-col gap-2">
+                    <CardContent className="p-4 flex flex-col gap-2.5">
                       <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2">
-                          <div className="bg-primary/10 text-primary p-2 rounded-lg">
+                        <div className="flex items-center gap-2.5">
+                          <div className="bg-primary/10 text-primary p-2.5 rounded-xl border border-primary/20">
                             <Droplets className="h-5 w-5" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-base">{service.name}</h3>
+                            <h3 className="font-bold text-base tracking-wide text-foreground">{service.name}</h3>
                             <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <Clock className="h-3 w-3" /> {service.base_duration_minutes} min
+                              <Clock className="h-3 w-3 text-primary" /> {service.base_duration_minutes} min de sesión
                             </span>
                           </div>
                         </div>
-                        <span className="font-bold text-lg text-primary">{formatCurrency(price, "USD")}</span>
+                        <div className="text-right">
+                          <span className="font-bold text-xl text-primary">{formatCurrency(price, "USD")}</span>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                            {patientTypeLabel}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">{service.short_description}</p>
+                      <p className="text-xs text-muted-foreground">{service.description || service.short_description}</p>
+                      {service.includes && service.includes.length > 0 && (
+                        <div className="mt-1 pt-2 border-t border-border/50 flex flex-wrap gap-1.5">
+                          {service.includes.map((inc, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-muted/60 text-foreground/90 font-medium">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" /> {inc}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -475,12 +585,18 @@ export default function BookingPage() {
 
       case 2:
         if (!state.vehicle) return null;
+        const currentAddons = addonsList.some(a => a.name.toUpperCase().includes('MASAJES') || a.id === 'ad_masajes') ? addonsList : ADDONS;
+        const displayAddons = currentAddons.filter(a => 
+          ['ad_masajes', 'ad_motor', 'ad_servicio', 'ad_tapiceria'].includes(a.id) ||
+          ['MASAJES EXTRAS', 'LAVADO DE MOTOR', 'SERVICIO DEL VEHÍCULO', 'LIMPIEZA DE TAPICERÍA'].some(name => a.name.toUpperCase().includes(name))
+        );
+
         return (
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <h2 className="text-lg font-bold">Extras (Opcional)</h2>
-                <p className="text-sm text-muted-foreground">Puedes seleccionar uno o varios adicionales</p>
+                <h2 className="text-lg font-bold">Sesiones Extras (Opcional)</h2>
+                <p className="text-sm text-muted-foreground">Puedes seleccionar una o varias sesiones adicionales</p>
               </div>
               <Button 
                 variant="secondary" 
@@ -491,11 +607,22 @@ export default function BookingPage() {
                 {state.addons.length > 0 ? "Listo" : "Omitir"} <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </div>
+
+            {/* Pastilla informativa / Recuadro de cotizar bajo inspección */}
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 shrink-0 text-amber-400" />
+              <div className="text-xs leading-relaxed">
+                <span className="font-bold block text-amber-400 uppercase tracking-wider text-[11px]">
+                  Cotizar bajo inspección del paciente
+                </span>
+                <span className="text-muted-foreground text-[11px]">
+                  El precio de estas sesiones adicionales será evaluado y acordado en sitio según las condiciones y estado físico del paciente.
+                </span>
+              </div>
+            </div>
+
             <div className="grid gap-3">
-              {addonsList.map((addon) => {
-                const price = addon.price_by_vehicle_size 
-                  ? addon.price_by_vehicle_size[state.vehicle!.size_category] 
-                  : addon.price_usd;
+              {(displayAddons.length > 0 ? displayAddons : ADDONS).map((addon) => {
                 const isSelected = state.addons.some(a => a.id === addon.id);
 
                 return (
@@ -503,26 +630,39 @@ export default function BookingPage() {
                     key={addon.id} 
                     className={cn(
                       "cursor-pointer transition-all active:scale-[0.98]", 
-                      isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/50"
+                      isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/50 border-border/60"
                     )}
                     onClick={() => toggleAddon(addon)}
                   >
-                    <CardContent className="p-4 flex justify-between items-center">
+                    <CardContent className="p-4 flex justify-between items-center gap-3">
                       <div className="flex items-center gap-3">
                         <div className={cn(
-                          "p-2 rounded-full transition-colors",
+                          "p-2 rounded-full transition-colors shrink-0",
                           isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                         )}>
                           {isSelected ? <CheckCircle2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
                         </div>
                         <div>
-                          <p className="font-medium text-base">{addon.name}</p>
+                          <p className="font-semibold text-sm sm:text-base text-foreground">{addon.name}</p>
+                          {addon.description && (
+                            <p className="text-xs text-muted-foreground">{addon.description}</p>
+                          )}
                           {addon.duration_minutes > 0 && (
-                            <p className="text-xs text-muted-foreground">+{addon.duration_minutes} min</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">+{addon.duration_minutes} min estimados</p>
                           )}
                         </div>
                       </div>
-                      <span className="font-semibold text-base">{formatCurrency(price, "USD")}</span>
+                      <div className="shrink-0 text-right">
+                        {addon.quote_on_inspection ? (
+                          <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 text-[11px] font-semibold whitespace-nowrap">
+                            Bajo inspección
+                          </Badge>
+                        ) : (
+                          <span className="font-semibold text-base">
+                            {formatCurrency(addon.price_by_vehicle_size ? addon.price_by_vehicle_size[state.vehicle!.size_category] : addon.price_usd, "USD")}
+                          </span>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -536,8 +676,8 @@ export default function BookingPage() {
                 onClick={nextStep}
               >
                 {state.addons.length > 0 
-                  ? `Continuar con ${state.addons.length} extra${state.addons.length > 1 ? 's' : ''}` 
-                  : "Continuar sin extras"}
+                  ? `Continuar con ${state.addons.length} sesión${state.addons.length > 1 ? 'es' : ''} extra` 
+                  : "Continuar sin sesiones extras"}
               </Button>
             </div>
           </div>
@@ -547,17 +687,37 @@ export default function BookingPage() {
         return (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold">¿Dónde lavamos tu auto?</h2>
+              <h2 className="text-lg font-bold">¿Dónde atendemos a tu paciente?</h2>
               <p className="text-sm text-muted-foreground">Toca una dirección guardada o agrega una nueva</p>
             </div>
-            {addressesList.length === 0 ? (
+            {isLoadingData && addressesList.length === 0 ? (
+              <div className="grid gap-3">
+                <Card className="border-border/40 bg-card/40 animate-pulse">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 text-primary p-3 rounded-full">
+                        <MapPin className="h-5 w-5 opacity-60" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+                        <div className="h-3 w-48 bg-muted/60 rounded animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span>Cargando tus direcciones...</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : addressesList.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed rounded-xl bg-muted/20">
                 <div className="bg-primary/10 text-primary p-3 rounded-full mb-3">
                   <MapPin className="h-6 w-6" />
                 </div>
                 <p className="font-semibold text-sm mb-1">Aún no tienes direcciones registradas</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Agrega el lugar donde lavaremos tu vehículo para continuar de inmediato con la reserva.
+                  Agrega el lugar donde realizaremos la sesión a tu paciente para continuar.
                 </p>
                 <Button size="sm" onClick={() => setIsAddAddressOpen(true)} className="cursor-pointer">
                   <Plus className="h-4 w-4 mr-1.5" /> Agregar Dirección
@@ -610,7 +770,27 @@ export default function BookingPage() {
 
       case 4:
         const currentDate = state.scheduledDate || next7Days[0];
-        const allSlotsPassedToday = TIME_SLOTS.every((s) => isTimeSlotInThePast(s.start_time, currentDate, 120));
+        const selectedVehicle = state.vehicle;
+        const hasInspectionExtras = state.addons.some((a) => a.quote_on_inspection);
+        const durationMinutes = calculateSessionDuration(
+          selectedVehicle?.type,
+          state.service?.id,
+          hasInspectionExtras
+        );
+
+        const dynamicSlots = generateDynamicTimeSlots({
+          date: currentDate,
+          durationMinutes,
+          bufferMinutes: 40,
+          activeBookings: dateActiveBookings,
+          workDayStart: "08:00",
+          workDayEnd: "17:30",
+          stepMinutes: 30,
+          minLeadMinutes: 60,
+        });
+
+        const allSlotsPassedToday = dynamicSlots.length > 0 && dynamicSlots.every((s) => !s.is_available && s.unavailability_reason !== 'occupied');
+
         return (
           <div className="space-y-6">
             <div>
@@ -647,22 +827,33 @@ export default function BookingPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <h2 className="text-lg font-bold">Horario disponible</h2>
-                {isLoadingSlots && <span className="text-xs text-muted-foreground animate-pulse">Verificando disponibilidad...</span>}
+                <h2 className="text-lg font-bold">Horarios disponibles</h2>
+                {isLoadingSlots && <span className="text-xs text-muted-foreground animate-pulse">Calculando disponibilidad...</span>}
               </div>
-              <p className="text-sm text-muted-foreground mb-3">
+
+              {/* Banner dinámico de duración y logística */}
+              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary shrink-0" />
+                  <p className="text-xs text-foreground font-medium">
+                    Sesión de <strong>{durationMinutes} min</strong> para tu paciente (+ 40 min de traslado en moto incluido).
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px] bg-primary/20 border-primary/30 text-primary font-bold shrink-0">
+                  {durationMinutes} min
+                </Badge>
+              </div>
+
+              <p className="text-xs text-muted-foreground mb-3">
                 {allSlotsPassedToday
-                  ? "Para hoy ya no quedan turnos con al menos 2 horas de anticipación. Por favor selecciona mañana u otra fecha."
-                  : "Toca la franja que más te convenga (se requiere un mínimo de 2 horas de anticipación para el traslado del técnico)"}
+                  ? "Para hoy ya no quedan turnos con la anticipación mínima requerida (1 hora). Por favor selecciona mañana u otra fecha."
+                  : "Selecciona el horario que más te convenga:"}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {TIME_SLOTS.map((slot) => {
-                  const normId = slot.id;
-                  const isOccupied = bookedSlots.includes(normId);
-                  const reason = getTimeSlotUnavailabilityReason(slot.start_time, currentDate, isOccupied, 120);
-                  const isUnavailable = !!reason;
-                  const isSelected = state.scheduledTimeSlot === normId;
+                {dynamicSlots.map((slot) => {
+                  const isUnavailable = !slot.is_available;
+                  const isSelected = state.scheduledTimeSlot === slot.id;
 
                   if (isUnavailable) {
                     return (
@@ -673,22 +864,22 @@ export default function BookingPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-semibold text-sm line-through text-muted-foreground">{slot.label}</p>
-                            {reason === 'occupied' ? (
+                            {slot.unavailability_reason === 'occupied' ? (
                               <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-destructive border-destructive/30 bg-destructive/10 font-normal">
                                 Ocupado
                               </Badge>
-                            ) : reason === 'insufficient_time' ? (
+                            ) : slot.unavailability_reason === 'insufficient_time' ? (
                               <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-amber-500 border-amber-500/30 bg-amber-500/10 font-normal">
-                                Mín. 2h de anticipación
+                                Mín. 1h anticipación
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-amber-500 border-amber-500/30 bg-amber-500/10 font-normal">
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-muted-foreground border-border bg-muted font-normal">
                                 Horario pasado
                               </Badge>
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground/70 mt-0.5">
-                            {slot.start_time} - {slot.end_time}
+                            {slot.duration_minutes} min de atención
                           </p>
                         </div>
                         <Clock className="h-4 w-4 text-muted-foreground/40 shrink-0" />
@@ -711,15 +902,23 @@ export default function BookingPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-sm">{slot.label}</p>
-                          <Badge variant="secondary" className="text-[10px] py-0 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
+                          <Badge variant="secondary" className={cn(
+                            "text-[10px] py-0 px-1.5 font-medium border",
+                            isSelected
+                              ? "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
+                              : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                          )}>
                             Disponible
                           </Badge>
                         </div>
-                        <p className={cn("text-xs mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                          {slot.start_time} - {slot.end_time}
+                        <p className={cn(
+                          "text-xs mt-0.5",
+                          isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                        )}>
+                          ⏱️ {slot.duration_minutes} min de sesión
                         </p>
                       </div>
-                      <Clock className={cn("h-4 w-4", isSelected ? "text-primary-foreground" : "text-muted-foreground")} />
+                      <Clock className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary-foreground" : "text-muted-foreground")} />
                     </button>
                   );
                 })}
@@ -762,19 +961,24 @@ export default function BookingPage() {
             
             <Card className="shadow-sm">
               <CardContent className="p-4 space-y-3.5">
-                {/* Vehículo */}
+                {/* Paciente */}
                 <div className="flex gap-3 items-center">
                   <div className="bg-primary/10 p-2.5 rounded-full text-primary shrink-0">
                     <Car className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="font-semibold">{state.vehicle?.brand} {state.vehicle?.model}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold">{state.vehicle?.brand} {state.vehicle?.model}</p>
+                      <Badge variant="outline" className="text-[10px] uppercase border-primary/40 text-primary">
+                        Paciente
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground font-mono">{state.vehicle?.plate} • {state.vehicle?.color}</p>
                   </div>
                 </div>
                 <Separator />
                 
-                {/* Servicio */}
+                {/* Sesión */}
                 <div className="flex gap-3 items-center">
                   <div className="bg-primary/10 p-2.5 rounded-full text-primary shrink-0">
                     <Droplets className="h-5 w-5" />
@@ -782,18 +986,18 @@ export default function BookingPage() {
                   <div className="flex-1 flex justify-between items-center">
                     <div>
                       <p className="font-semibold">{state.service?.name}</p>
-                      <p className="text-xs text-muted-foreground">{state.service?.base_duration_minutes} min de servicio</p>
+                      <p className="text-xs text-muted-foreground">{state.service?.base_duration_minutes} min de sesión</p>
                     </div>
                     <span className="font-semibold">{formatCurrency(pricing.servicePrice || 0, "USD")}</span>
                   </div>
                 </div>
 
-                {/* Extras */}
+                {/* Sesiones Extras */}
                 {state.addons.length > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-1.5 pl-11">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase">Adicionales:</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase">Sesiones Extras seleccionadas:</p>
                       {state.addons.map(addon => {
                         const price = addon.price_by_vehicle_size 
                           ? addon.price_by_vehicle_size[state.vehicle!.size_category] 
@@ -801,10 +1005,17 @@ export default function BookingPage() {
                         return (
                           <div key={addon.id} className="flex justify-between text-xs text-muted-foreground">
                             <span>+ {addon.name}</span>
-                            <span>{formatCurrency(price, "USD")}</span>
+                            <span className="text-amber-400 font-medium">
+                              {addon.quote_on_inspection ? "Bajo inspección" : formatCurrency(price, "USD")}
+                            </span>
                           </div>
                         );
                       })}
+                      {state.addons.some(a => a.quote_on_inspection) && (
+                        <div className="mt-1 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] leading-snug">
+                          * Las sesiones extras se cotizarán bajo inspección física del paciente en el lugar.
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -840,20 +1051,24 @@ export default function BookingPage() {
                 {/* Desglose de Pago */}
                 <Separator />
                 <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Sesión ({state.service?.name})</span>
+                    <span>{formatCurrency(pricing.servicePrice, "USD")}</span>
+                  </div>
                   {pricing.addonsTotal > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Servicio</span>
-                        <span>{formatCurrency(pricing.servicePrice, "USD")}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Adicionales</span>
-                        <span>{formatCurrency(pricing.addonsTotal, "USD")}</span>
-                      </div>
-                    </>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Adicionales con costo fijo</span>
+                      <span>{formatCurrency(pricing.addonsTotal, "USD")}</span>
+                    </div>
                   )}
-                  <div className={cn("flex justify-between font-bold text-lg text-primary", pricing.addonsTotal > 0 ? "pt-2 border-t" : "")}>
-                    <span>Total a Pagar</span>
+                  {state.addons.some(a => a.quote_on_inspection) && (
+                    <div className="flex justify-between text-sm text-amber-400">
+                      <span>Sesiones extras ({state.addons.filter(a => a.quote_on_inspection).length})</span>
+                      <span className="font-medium">Bajo inspección</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-lg text-primary pt-2 border-t">
+                    <span>Total a Pagar (Base)</span>
                     <span>{formatCurrency(pricing.total)}</span>
                   </div>
                   <div className="flex justify-between text-xs text-muted-foreground pt-1">
@@ -976,9 +1191,9 @@ export default function BookingPage() {
       <Dialog open={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Agregar Vehículo</DialogTitle>
+            <DialogTitle>Registrar Paciente</DialogTitle>
             <DialogDescription>
-              Ingresa los datos de tu vehículo para asignarlo de inmediato a tu reserva.
+              Ingresa los datos del paciente (vehículo) para asignarlo de inmediato a tu sesión.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onAddVehicleSubmit)} className="space-y-4 pt-2">
@@ -1020,7 +1235,7 @@ export default function BookingPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="b-type">Tipo de Vehículo</Label>
+              <Label htmlFor="b-type">Tipo de Paciente</Label>
               <Select 
                 value={selectedType} 
                 onValueChange={(val: string | null) => {
@@ -1031,7 +1246,7 @@ export default function BookingPage() {
                 }}
               >
                 <SelectTrigger id="b-type">
-                  <SelectValue placeholder="Selecciona el tipo" />
+                  <SelectValue placeholder="Selecciona el tipo de paciente" />
                 </SelectTrigger>
                 <SelectContent>
                   {VEHICLE_TYPE_OPTIONS.map((opt) => (
@@ -1045,7 +1260,7 @@ export default function BookingPage() {
             </div>
 
             <Button type="submit" className="w-full mt-2 h-11">
-              Guardar y Seleccionar
+              Guardar Paciente y Continuar
             </Button>
           </form>
         </DialogContent>
