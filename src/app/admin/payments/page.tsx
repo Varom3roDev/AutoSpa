@@ -24,7 +24,7 @@ import {
   verifyPaymentRecord,
   fetchAppSettings,
 } from "@/lib/supabase/api";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, playAudioChime } from "@/lib/utils";
 import type { PaymentRecord, PaymentAccountConfig, PaymentMethodType, AppSettings } from "@/lib/types";
 import {
   CreditCard,
@@ -57,6 +57,7 @@ export default function PaymentsAdminPage() {
   const [isManualPayOpen, setIsManualPayOpen] = useState(false);
   const [isAccountsOpen, setIsAccountsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
 
   // Manual payment form state
   const [manualForm, setManualForm] = useState({
@@ -177,9 +178,12 @@ export default function PaymentsAdminPage() {
     if (!editingAccounts) return;
     setIsSaving(true);
     try {
-      await updatePaymentAccountsConfig(editingAccounts);
-      setAccounts(editingAccounts);
+      const saved = await updatePaymentAccountsConfig(editingAccounts);
+      setAccounts(saved);
       setIsAccountsOpen(false);
+      setSaveSuccessMsg(true);
+      playAudioChime('prominent');
+      setTimeout(() => setSaveSuccessMsg(false), 4500);
     } catch (err) {
       console.error(err);
     } finally {
@@ -240,7 +244,10 @@ export default function PaymentsAdminPage() {
               size="sm"
               variant="outline"
               className="gap-1 shadow-xs"
-              onClick={() => setIsAccountsOpen(true)}
+              onClick={() => {
+                setEditingAccounts(accounts ? { ...accounts } : null);
+                setIsAccountsOpen(true);
+              }}
             >
               <Settings className="h-4 w-4" />
               Cuentas
@@ -256,6 +263,13 @@ export default function PaymentsAdminPage() {
           </div>
         }
       />
+
+      {saveSuccessMsg && (
+        <div className="mx-4 mt-3 p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 rounded-xl flex items-center gap-2 text-xs font-medium animate-in fade-in duration-200">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+          <span>¡Cuentas receptoras guardadas y sincronizadas en la nube con éxito! Los clientes ya pueden ver los nuevos datos.</span>
+        </div>
+      )}
 
       {/* Financial Summary Cards */}
       <div className="px-4 pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">

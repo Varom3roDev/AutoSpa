@@ -1836,20 +1836,20 @@ export async function deleteTechnician(techId: string): Promise<boolean> {
  */
 const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig = {
   pago_movil: {
-    bank: 'Banesco (0134)',
-    phone: '0416-6315114',
-    id_doc: 'V-17894562',
-    account_holder: 'AutoSpa Caracas C.A.',
+    bank: 'R4/0169',
+    phone: '04241979461',
+    id_doc: 'V-16248911',
+    account_holder: 'Christian Chividatt',
   },
   zelle: {
-    email: 'pagos@autospa.com.ve',
-    account_holder: 'AutoSpa Services LLC',
+    email: 'chividattechristian',
+    account_holder: 'Christian Chividatt',
   },
   bank_transfer: {
-    bank: 'Banesco Banco Universal',
-    account_number: '0134-0012-34-1234567890',
-    account_holder: 'AutoSpa Caracas C.A.',
-    id_doc: 'J-50123456-7',
+    bank: '',
+    account_number: '',
+    account_holder: '',
+    id_doc: '',
   },
 };
 
@@ -1874,36 +1874,70 @@ export function parseBookingPaymentData(notes?: string): ReportedPaymentData | n
   }
 }
 
-export async function fetchPaymentAccountsConfig(): Promise<PaymentAccountConfig> {
-  if (typeof window !== 'undefined') {
+export async function fetchPaymentAccountsConfig(forceCloud: boolean = false): Promise<PaymentAccountConfig> {
+  let cached: PaymentAccountConfig | null = null;
+  if (typeof window !== 'undefined' && !forceCloud) {
     try {
       const stored = localStorage.getItem('autospa_payment_accounts');
       if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.binance_pay) {
-          delete parsed.binance_pay;
-        }
-        return parsed;
+        cached = JSON.parse(stored);
       }
     } catch (err) {
-      console.warn('Error reading payment accounts:', err);
+      console.warn('Error reading payment accounts from local storage:', err);
     }
   }
-  return DEFAULT_PAYMENT_ACCOUNTS;
+
+  // 1. Consultar en la base de datos Supabase
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('payment_accounts')
+      .eq('id', 'default')
+      .single();
+
+    if (!error && data?.payment_accounts) {
+      const accounts = data.payment_accounts as PaymentAccountConfig;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('autospa_payment_accounts', JSON.stringify(accounts));
+      }
+      return accounts;
+    }
+  } catch (err) {
+    console.warn('Supabase fetchPaymentAccountsConfig error:', err);
+  }
+
+  return cached || DEFAULT_PAYMENT_ACCOUNTS;
 }
 
 export async function updatePaymentAccountsConfig(config: PaymentAccountConfig): Promise<PaymentAccountConfig> {
+  const cleanConfig = { ...config };
+  delete cleanConfig.binance_pay;
+
+  // 1. Guardar en local storage para disponibilidad inmediata (0ms)
   if (typeof window !== 'undefined') {
     try {
-      const cleanConfig = { ...config };
-      delete cleanConfig.binance_pay;
       localStorage.setItem('autospa_payment_accounts', JSON.stringify(cleanConfig));
       window.dispatchEvent(new Event('autospa_payment_accounts_updated'));
     } catch (err) {
-      console.warn('Error updating payment accounts:', err);
+      console.warn('Error updating payment accounts in local storage:', err);
     }
   }
-  return config;
+
+  // 2. Persistir en la nube (Supabase) para todos los clientes y administradores
+  try {
+    const { error } = await supabase.from('app_settings').upsert({
+      id: 'default',
+      payment_accounts: cleanConfig,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.warn('Supabase updatePaymentAccountsConfig error:', error);
+    }
+  } catch (err) {
+    console.warn('Supabase updatePaymentAccountsConfig failed:', err);
+  }
+
+  return cleanConfig;
 }
 
 export async function reportBookingPayment(
