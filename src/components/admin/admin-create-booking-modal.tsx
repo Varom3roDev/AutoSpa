@@ -70,7 +70,7 @@ const VEHICLE_TYPES: { type: VehicleType; label: string; size: VehicleSizeCatego
   { type: 'motorcycle', label: 'Moto', size: 'small' },
   { type: 'sedan', label: 'Sedán', size: 'medium' },
   { type: 'suv', label: 'Camioneta', size: 'large' },
-  { type: 'van', label: 'Minivan', size: 'xlarge' },
+  { type: 'van', label: 'Van / Mini van (Camioneta)', size: 'xlarge' },
 ];
 
 export function AdminCreateBookingModal({

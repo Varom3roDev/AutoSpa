@@ -46,7 +46,7 @@ const VEHICLE_TYPE_OPTIONS: { label: string; value: VehicleType; size: VehicleSi
   { label: 'Moto', value: 'motorcycle', size: 'small' },
   { label: 'Sedán', value: 'sedan', size: 'medium' },
   { label: 'Camioneta', value: 'suv', size: 'large' },
-  { label: 'Minivan', value: 'van', size: 'xlarge' },
+  { label: 'Van / Mini van (Camioneta)', value: 'van', size: 'xlarge' },
 ];
 
 export default function ClientVehiclesPage() {
