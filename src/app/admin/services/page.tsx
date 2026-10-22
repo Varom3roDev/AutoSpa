@@ -79,7 +79,12 @@ export default function ServicesAdminPage() {
       fetchServices(),
       fetchServiceAddons(),
     ]);
-    setServices(sData);
+    const sortedServices = [...sData].sort((a, b) => {
+      const orderA = a.sort_order ?? (a.name.includes('24') ? 1 : 2);
+      const orderB = b.sort_order ?? (b.name.includes('24') ? 1 : 2);
+      return orderA - orderB;
+    });
+    setServices(sortedServices);
     setAddons(aData);
     setIsLoading(false);
   }

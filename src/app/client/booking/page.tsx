@@ -94,14 +94,10 @@ const vehicleSchema = z.object({
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
 
 const VEHICLE_TYPE_OPTIONS: { label: string; value: VehicleType; size: VehicleSizeCategory }[] = [
+  { label: 'Moto', value: 'motorcycle', size: 'small' },
   { label: 'Sedán', value: 'sedan', size: 'medium' },
-  { label: 'SUV', value: 'suv', size: 'large' },
-  { label: 'Camioneta (Pick-up)', value: 'pickup', size: 'large' },
-  { label: 'Van / Minivan', value: 'van', size: 'xlarge' },
-  { label: 'Motocicleta', value: 'motorcycle', size: 'small' },
-  { label: 'Coupé', value: 'coupe', size: 'medium' },
-  { label: 'Hatchback / Compacto', value: 'hatchback', size: 'small' },
-  { label: 'Camión', value: 'truck', size: 'xlarge' },
+  { label: 'Camioneta', value: 'suv', size: 'large' },
+  { label: 'Minivan', value: 'van', size: 'xlarge' },
 ];
 
 export default function BookingPage() {
@@ -506,14 +502,21 @@ export default function BookingPage() {
         // Si es moto -> Solo MOTOS ($10)
         // Si es carro o camioneta -> Solo GOLD 22K y GOLD 24K
         const currentCatalog = servicesList.some(s => s.name.toUpperCase().includes('GOLD')) ? servicesList : SERVICES;
-        const filteredServices = currentCatalog.filter((service) => {
-          const isMotoService = service.id === 's_motos' || service.name.toUpperCase().includes('MOTO');
-          if (isMoto) {
-            return isMotoService;
-          } else {
-            return !isMotoService;
-          }
-        });
+        const filteredServices = currentCatalog
+          .filter((service) => {
+            const isMotoService = service.id === 's_motos' || service.name.toUpperCase().includes('MOTO');
+            if (isMoto) {
+              return isMotoService;
+            } else {
+              return !isMotoService;
+            }
+          })
+          .sort((a, b) => {
+            // Asegurar que GOLD 24K (o precio más alto) vaya primero que GOLD 22K
+            const orderA = a.sort_order ?? (a.name.includes('24') ? 1 : 2);
+            const orderB = b.sort_order ?? (b.name.includes('24') ? 1 : 2);
+            return orderA - orderB;
+          });
 
         return (
           <div className="space-y-4">

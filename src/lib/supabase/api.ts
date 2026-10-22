@@ -27,25 +27,43 @@ const supabase = createClient();
  * SERVICIOS
  */
 export async function fetchServices(): Promise<Service[]> {
-  // 1. Check local storage cache for version 3
+  // 1. Try Supabase first
+  try {
+    const { data, error } = await supabase
+      .from('services')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    if (!error && data && data.length > 0) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('autospa_services_catalog_v4', JSON.stringify(data));
+      }
+      return data as Service[];
+    }
+  } catch (err) {
+    console.warn('Supabase fetchServices error, fallback to cache:', err);
+  }
+
+  // 2. Check local storage cache for version 4
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem('autospa_services_catalog');
       localStorage.removeItem('autospa_services_catalog_v3');
 
-      const stored = localStorage.getItem('autospa_services_catalog_v3');
+      const stored = localStorage.getItem('autospa_services_catalog_v4');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(s => s.id === 's_gold_22k' || s.name.includes('GOLD'))) {
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some((s: Service) => s.id === 's_gold_24k' || s.name.includes('GOLD'))) {
           return parsed;
         }
       }
     } catch (e) {
-      console.warn('Error reading autospa_services_catalog_v3:', e);
+      console.warn('Error reading autospa_services_catalog_v4:', e);
     }
 
-    // Seed official catalog v3
-    localStorage.setItem('autospa_services_catalog_v3', JSON.stringify(SERVICES));
+    // Seed official catalog v4
+    localStorage.setItem('autospa_services_catalog_v4', JSON.stringify(SERVICES));
   }
 
   return SERVICES;

@@ -67,12 +67,10 @@ interface AdminCreateBookingModalProps {
 const MUNICIPALITIES = ['Chacao', 'Baruta', 'El Hatillo', 'Sucre', 'Libertador'];
 
 const VEHICLE_TYPES: { type: VehicleType; label: string; size: VehicleSizeCategory }[] = [
-  { type: 'sedan', label: 'Sedán', size: 'medium' },
-  { type: 'suv', label: 'SUV / Camioneta', size: 'large' },
-  { type: 'pickup', label: 'Pick-up', size: 'large' },
-  { type: 'hatchback', label: 'Compacto', size: 'small' },
-  { type: 'van', label: 'Van / Minivan', size: 'xlarge' },
   { type: 'motorcycle', label: 'Moto', size: 'small' },
+  { type: 'sedan', label: 'Sedán', size: 'medium' },
+  { type: 'suv', label: 'Camioneta', size: 'large' },
+  { type: 'van', label: 'Minivan', size: 'xlarge' },
 ];
 
 export function AdminCreateBookingModal({
@@ -709,6 +707,11 @@ export function AdminCreateBookingModal({
                 .filter((svc) => {
                   const isMotoService = svc.id === 's_motos' || svc.name.toUpperCase().includes('MOTO');
                   return isMoto ? isMotoService : !isMotoService;
+                })
+                .sort((a, b) => {
+                  const orderA = a.sort_order ?? (a.name.includes('24') ? 1 : 2);
+                  const orderB = b.sort_order ?? (b.name.includes('24') ? 1 : 2);
+                  return orderA - orderB;
                 })
                 .map((svc) => {
                 const isSelected = selectedServiceId === svc.id;

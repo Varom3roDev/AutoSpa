@@ -43,14 +43,10 @@ const vehicleSchema = z.object({
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
 
 const VEHICLE_TYPE_OPTIONS: { label: string; value: VehicleType; size: VehicleSizeCategory }[] = [
+  { label: 'Moto', value: 'motorcycle', size: 'small' },
   { label: 'Sedán', value: 'sedan', size: 'medium' },
-  { label: 'SUV', value: 'suv', size: 'large' },
-  { label: 'Camioneta (Pick-up)', value: 'pickup', size: 'large' },
-  { label: 'Van / Minivan', value: 'van', size: 'xlarge' },
-  { label: 'Motocicleta', value: 'motorcycle', size: 'small' },
-  { label: 'Coupé', value: 'coupe', size: 'medium' },
-  { label: 'Hatchback / Compacto', value: 'hatchback', size: 'small' },
-  { label: 'Camión', value: 'truck', size: 'xlarge' },
+  { label: 'Camioneta', value: 'suv', size: 'large' },
+  { label: 'Minivan', value: 'van', size: 'xlarge' },
 ];
 
 export default function ClientVehiclesPage() {

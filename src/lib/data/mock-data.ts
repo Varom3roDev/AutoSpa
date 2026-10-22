@@ -161,27 +161,6 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
 
 export const SERVICES: Service[] = [
   {
-    id: 's_gold_22k',
-    category_id: 'cat_gold',
-    name: 'GOLD 22K',
-    description: 'Lavado exterior + Limpieza y aspirado interior + Secado profesional.',
-    short_description: 'Exterior, aspirado interior y secado profesional',
-    includes: ['Lavado exterior', 'Limpieza y aspirado interior', 'Secado profesional'],
-    excludes: ['Lavado de chasis', 'Fórmula Marina'],
-    base_duration_minutes: 60,
-    base_price_usd: 15,
-    price_by_vehicle_size: {
-      small: 15,
-      medium: 15,
-      large: 20,
-      xlarge: 20
-    },
-    tax_rate: 0,
-    min_technicians: 1,
-    is_active: true,
-    sort_order: 1
-  },
-  {
     id: 's_gold_24k',
     category_id: 'cat_gold',
     name: 'GOLD 24K',
@@ -196,6 +175,27 @@ export const SERVICES: Service[] = [
       medium: 25,
       large: 30,
       xlarge: 30
+    },
+    tax_rate: 0,
+    min_technicians: 1,
+    is_active: true,
+    sort_order: 1
+  },
+  {
+    id: 's_gold_22k',
+    category_id: 'cat_gold',
+    name: 'GOLD 22K',
+    description: 'Lavado exterior + Limpieza y aspirado interior + Secado profesional.',
+    short_description: 'Exterior, aspirado interior y secado profesional',
+    includes: ['Lavado exterior', 'Limpieza y aspirado interior', 'Secado profesional'],
+    excludes: ['Lavado de chasis', 'Fórmula Marina'],
+    base_duration_minutes: 60,
+    base_price_usd: 15,
+    price_by_vehicle_size: {
+      small: 15,
+      medium: 15,
+      large: 20,
+      xlarge: 20
     },
     tax_rate: 0,
     min_technicians: 1,
