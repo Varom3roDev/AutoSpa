@@ -434,9 +434,9 @@ export function PaymentReportCard({
           {/* TAB 1: PAGO MOVIL */}
           <TabsContent value="pago_movil" className="mt-3 space-y-3">
             {(() => {
-              const rawPhone = accounts?.pago_movil.phone || '0416-6315114';
+              const rawPhone = accounts?.pago_movil.phone || '04241979461';
               const cleanPhone = rawPhone.replace(/\D/g, ''); // solo dígitos para bancos
-              const rawIdDoc = accounts?.pago_movil.id_doc || 'V-17894562';
+              const rawIdDoc = accounts?.pago_movil.id_doc || 'V-16248911';
               const cleanIdDoc = rawIdDoc.replace(/\D/g, ''); // solo dígitos de cédula
               const cleanAmountBs = totalVes.toFixed(2);
 
@@ -444,7 +444,7 @@ export function PaymentReportCard({
                 <div className="bg-muted/40 p-3.5 rounded-xl border text-xs space-y-2.5">
                   <div className="flex justify-between items-center py-1">
                     <span className="text-muted-foreground font-medium">Banco Receptor:</span>
-                    <span className="font-semibold text-foreground">{accounts?.pago_movil.bank || 'Banesco (0134)'}</span>
+                    <span className="font-semibold text-foreground">{accounts?.pago_movil.bank || 'R4/0169'}</span>
                   </div>
 
                   <div className="flex justify-between items-center py-1 border-t border-border/50">
@@ -550,7 +550,7 @@ export function PaymentReportCard({
           {/* TAB 2: ZELLE */}
           <TabsContent value="zelle" className="mt-3 space-y-3">
             {(() => {
-              const zelleEmail = accounts?.zelle.email || 'pagos@autospa.com.ve';
+              const zelleEmail = accounts?.zelle.email || 'chividattechristian';
               const cleanAmountUsd = totalUsd.toFixed(2);
 
               return (

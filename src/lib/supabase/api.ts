@@ -1139,37 +1139,7 @@ const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 export async function fetchAppSettings(): Promise<AppSettings> {
-  let activeSettings = { ...DEFAULT_APP_SETTINGS };
-
-  // 1. Try local server API (multi-device sync on network)
-  if (typeof window !== 'undefined') {
-    try {
-      const res = await fetch('/api/admin/settings', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && typeof data.bcv_exchange_rate === 'number') {
-          activeSettings = { ...activeSettings, ...data };
-          localStorage.setItem('autospa_global_settings', JSON.stringify(activeSettings));
-          return activeSettings;
-        }
-      }
-    } catch {}
-  }
-
-  // 2. Read from localStorage fallback
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('autospa_global_settings');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        activeSettings = { ...activeSettings, ...parsed };
-      }
-    } catch (err) {
-      console.warn('Error reading autospa_global_settings:', err);
-    }
-  }
-
-  // 3. Try Supabase if table exists
+  // 1. Consultar directamente a Supabase (fuente de verdad en la nube)
   try {
     const { data, error } = await supabase
       .from('app_settings')
@@ -1178,11 +1148,42 @@ export async function fetchAppSettings(): Promise<AppSettings> {
       .single();
 
     if (!error && data) {
-      activeSettings = { ...activeSettings, ...data };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('autospa_global_settings', JSON.stringify(data));
+      }
+      return data as AppSettings;
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Supabase fetchAppSettings error:', err);
+  }
 
-  return activeSettings;
+  // 2. Fallback a la API del servidor
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/admin/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.bcv_exchange_rate === 'number') {
+          localStorage.setItem('autospa_global_settings', JSON.stringify(data));
+          return data as AppSettings;
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Fallback a caché local
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('autospa_global_settings');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (err) {
+      console.warn('Error reading autospa_global_settings:', err);
+    }
+  }
+
+  return DEFAULT_APP_SETTINGS;
 }
 
 export async function updateAppSettings(settings: Partial<AppSettings>): Promise<AppSettings> {

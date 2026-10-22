@@ -23,8 +23,9 @@ import {
   updateCustomerAddress,
   deleteCustomerAddress,
   setDefaultCustomerAddress,
+  fetchPaymentAccountsConfig,
 } from "@/lib/supabase/api";
-import type { CustomerAddress } from "@/lib/types";
+import type { CustomerAddress, PaymentAccountConfig } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import { getInitials } from "@/lib/utils";
 import {
@@ -66,6 +67,7 @@ export default function ProfilePage() {
   const [isPaymentMethodsOpen, setIsPaymentMethodsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig | null>(null);
 
   // Form states for Edit Profile
   const [editFullName, setEditFullName] = useState("");
@@ -105,7 +107,7 @@ export default function ProfilePage() {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [securityMessage, setSecurityMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
-  // Load addresses
+  // Load addresses & payment accounts
   useEffect(() => {
     async function loadData() {
       if (user?.id) {
@@ -114,6 +116,7 @@ export default function ProfilePage() {
         setAddresses(data);
         setIsLoadingAddresses(false);
       }
+      fetchPaymentAccountsConfig().then(setPaymentAccounts);
     }
     loadData();
   }, [user?.id]);
@@ -731,18 +734,49 @@ export default function ProfilePage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-sm">
+            {/* Pago Móvil */}
             <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
               <div className="flex items-center gap-2 font-bold text-primary">
                 <Smartphone className="h-4 w-4" />
                 <span>Pago Móvil (Bolívares a Tasa BCV)</span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                <strong>Banco:</strong> Banesco (0134) o Mercantil (0105)<br />
-                <strong>Teléfono:</strong> 0416-6315114<br />
-                <strong>C.I. / RIF:</strong> V-12.345.678
-              </p>
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p><strong>Banco:</strong> {paymentAccounts?.pago_movil.bank || "R4/0169"}</p>
+                <p><strong>Teléfono:</strong> {paymentAccounts?.pago_movil.phone || "04241979461"}</p>
+                <p><strong>Cédula / RIF:</strong> {paymentAccounts?.pago_movil.id_doc || "V-16248911"}</p>
+                <p><strong>Titular:</strong> {paymentAccounts?.pago_movil.account_holder || "Christian Chividatt"}</p>
+              </div>
             </div>
 
+            {/* Zelle */}
+            <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-purple-500">
+                <Building className="h-4 w-4" />
+                <span>Zelle (USD)</span>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p><strong>Correo:</strong> {paymentAccounts?.zelle.email || "chividattechristian"}</p>
+                <p><strong>Titular:</strong> {paymentAccounts?.zelle.account_holder || "Christian Chividatt"}</p>
+              </div>
+            </div>
+
+            {/* Transferencia Bancaria Nacional */}
+            {paymentAccounts?.bank_transfer?.bank && paymentAccounts?.bank_transfer?.account_number && (
+              <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
+                <div className="flex items-center gap-2 font-bold text-blue-500">
+                  <Building className="h-4 w-4" />
+                  <span>Transferencia Bancaria Nacional</span>
+                </div>
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  <p><strong>Banco:</strong> {paymentAccounts.bank_transfer.bank}</p>
+                  <p><strong>Cuenta:</strong> {paymentAccounts.bank_transfer.account_number}</p>
+                  <p><strong>Titular:</strong> {paymentAccounts.bank_transfer.account_holder}</p>
+                  <p><strong>RIF:</strong> {paymentAccounts.bank_transfer.id_doc}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Efectivo */}
             <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
               <div className="flex items-center gap-2 font-bold text-emerald-600">
                 <Banknote className="h-4 w-4" />
@@ -753,17 +787,7 @@ export default function ProfilePage() {
               </p>
             </div>
 
-            <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-purple-600">
-                <Building className="h-4 w-4" />
-                <span>Zelle</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                <strong>Correo:</strong> pagos@autospacaracas.com<br />
-                <strong>Titular:</strong> AutoSpa Servicios C.A.
-              </p>
-            </div>
-
+            {/* Punto de Venta */}
             <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
               <div className="flex items-center gap-2 font-bold text-blue-600">
                 <CreditCard className="h-4 w-4" />
