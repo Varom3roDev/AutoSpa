@@ -318,10 +318,10 @@ export default function ClientReservationDetailPage() {
     { status: 'Sesión Solicitada', desc: 'Registro inicial completado', done: true },
     { status: 'Pago Verificado & Confirmada', desc: isConfirmed ? 'Aprobada por el equipo' : 'En espera de validación de pago', done: isConfirmed },
     { status: 'Técnico Especialista Asignado', desc: isAssigned ? 'Especialista preparado' : 'Pendiente de asignación', done: isAssigned },
-    { status: 'Técnico en Camino', desc: isEnRoute ? 'En ruta hacia la ubicación del paciente' : 'A la espera del traslado', done: isEnRoute },
-    { status: 'Llegada al Sitio', desc: isArrived ? 'Especialista en ubicación del paciente' : 'Por llegar', done: isArrived },
-    { status: 'Sesión en Proceso', desc: isInProgress ? 'Paciente siendo atendido' : 'Pendiente de inicio', done: isInProgress },
-    { status: 'Sesión Completada', desc: isCompleted ? '¡Paciente listo e impecable!' : 'Pendiente de finalización', done: isCompleted },
+    { status: 'Técnico en Camino', desc: isEnRoute ? 'En ruta hacia la ubicación del vehículo' : 'A la espera del traslado', done: isEnRoute },
+    { status: 'Llegada al Sitio', desc: isArrived ? 'Especialista en ubicación del vehículo' : 'Por llegar', done: isArrived },
+    { status: 'Sesión en Proceso', desc: isInProgress ? 'Vehículo siendo atendido' : 'Pendiente de inicio', done: isInProgress },
+    { status: 'Sesión Completada', desc: isCompleted ? '¡Vehículo listo e impecable!' : 'Pendiente de finalización', done: isCompleted },
   ];
 
   return (
@@ -374,10 +374,10 @@ export default function ClientReservationDetailPage() {
               </div>
               <div className="flex-1">
                 <p className="text-xs font-bold text-foreground">
-                  {booking.status === 'en_route' && '🚗 Tu técnico va en camino hacia la ubicación del paciente'}
-                  {booking.status === 'arrived' && '📍 Tu técnico ha llegado al lugar del paciente'}
+                  {booking.status === 'en_route' && '🚗 Tu técnico va en camino hacia la ubicación del vehículo'}
+                  {booking.status === 'arrived' && '📍 Tu técnico ha llegado al lugar del vehículo'}
                   {booking.status === 'in_progress' && '🫧 Sesión de cuidado en proceso'}
-                  {booking.status === 'quality_check' && '🔍 Inspección final de calidad del paciente'}
+                  {booking.status === 'quality_check' && '🔍 Inspección final de calidad del vehículo'}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   La información se actualiza automáticamente en tiempo real.
@@ -404,7 +404,7 @@ export default function ClientReservationDetailPage() {
                       Horario Expirado / En Revisión con Soporte
                     </h4>
                     <p className="text-xs text-foreground mt-1 leading-relaxed">
-                      El horario previsto para la sesión de tu paciente ({booking.scheduled_date} • {formatTimeSlot(booking.scheduled_time_slot)}) ya finalizó. 
+                      El horario previsto para la sesión de tu vehículo ({booking.scheduled_date} • {formatTimeSlot(booking.scheduled_time_slot)}) ya finalizó. 
                       Nuestro equipo de <strong>Administración y Soporte</strong> está al tanto de la incidencia. 
                       Por favor, contáctanos directamente para reasignar la hora o reprogramar tu sesión sin inconvenientes.
                     </p>
@@ -472,7 +472,7 @@ export default function ClientReservationDetailPage() {
         {vehicle && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Paciente</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Vehículo</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="font-medium">{vehicle.brand} {vehicle.model}</div>

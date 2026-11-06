@@ -266,7 +266,7 @@ export function getTimeSlotStartMinutes(slot?: string): number {
 }
 
 /**
- * Calcula la duración estimada en minutos de una sesión según el paciente y los servicios/extras.
+ * Calcula la duración estimada en minutos de una sesión según el vehículo y los servicios/extras.
  */
 export function calculateSessionDuration(
   vehicleType?: string,
@@ -441,6 +441,7 @@ export function normalizeTimeSlotId(slot?: string): string {
   if (!slot) return "";
   const s = slot.trim().toLowerCase();
   if (s === "ts_0" || s === "ts_1" || s === "ts_2" || s === "ts_3" || s === "ts_4") return s;
+  if (slot.includes("-")) return slot.trim();
   if (s.includes("07:00") || s.includes("7:00")) return "ts_0";
   if (s.includes("09:00") || s.includes("9:00")) return "ts_1";
   if (s.includes("11:00")) return "ts_2";

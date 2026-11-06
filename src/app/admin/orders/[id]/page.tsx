@@ -43,7 +43,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { CalendarDays, Clock, MapPin, User, Car, Wrench, Phone, CheckCircle2, Trash2, Smartphone, Send, Building, Banknote, ShieldCheck, Calendar, AlertCircle } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, User, Car, Wrench, Phone, CheckCircle2, Trash2, Smartphone, Send, Building, Banknote, ShieldCheck, Calendar, AlertCircle, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { TIME_SLOTS } from '@/lib/data/mock-data';
 import type { Booking, Service, Customer, User as UserType, Vehicle, CustomerAddress } from '@/lib/types';
@@ -413,9 +413,38 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
         {/* Cliente */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <User className="w-4 h-4 text-primary" /> Cliente
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <User className="w-4 h-4 text-primary" /> Cliente
+              </CardTitle>
+              {client?.phone && (() => {
+                let cleanPhone = client.phone.replace(/\D/g, '');
+                if (cleanPhone.startsWith('0')) {
+                  cleanPhone = '58' + cleanPhone.slice(1);
+                } else if (!cleanPhone.startsWith('58') && cleanPhone.length === 10) {
+                  cleanPhone = '58' + cleanPhone;
+                }
+                const customMsg = encodeURIComponent(
+                  `Hola ${client.full_name || ''}, te contactamos de AutoSpa en relación a tu orden ${booking.code}.`
+                );
+                const waUrl = `https://wa.me/${cleanPhone}?text=${customMsg}`;
+                return (
+                  <Link
+                    href={waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button
+                      size="sm"
+                      className="h-8 px-3 text-xs font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-black gap-1.5 shadow-sm rounded-lg"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 fill-black" />
+                      Escribir por WhatsApp
+                    </Button>
+                  </Link>
+                );
+              })()}
+            </div>
           </CardHeader>
           <CardContent className="text-sm space-y-3">
             <div>
@@ -442,7 +471,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Car className="w-4 h-4 text-primary" /> Paciente
+                <Car className="w-4 h-4 text-primary" /> Vehículo
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm">

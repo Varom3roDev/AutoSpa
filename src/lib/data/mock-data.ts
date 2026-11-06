@@ -164,9 +164,9 @@ export const SERVICES: Service[] = [
     id: 's_gold_24k',
     category_id: 'cat_gold',
     name: 'GOLD 24K',
-    description: 'Lavado exterior + Limpieza y aspirado interior + Lavado de chasis + Fórmula Marina.',
-    short_description: 'Exterior, aspirado, lavado de chasis y fórmula marina',
-    includes: ['Lavado exterior', 'Limpieza y aspirado interior', 'Lavado de chasis', 'Fórmula Marina'],
+    description: 'Lavado exterior + Limpieza y aspirado interior + Lavado de chasis + Lluvia de Fórmula Marina.',
+    short_description: 'Exterior, aspirado, lavado de chasis y lluvia de fórmula marina',
+    includes: ['Lavado exterior', 'Limpieza y aspirado interior', 'Lavado de chasis', 'Lluvia de Fórmula Marina'],
     excludes: [],
     base_duration_minutes: 90,
     base_price_usd: 25,
@@ -188,7 +188,7 @@ export const SERVICES: Service[] = [
     description: 'Lavado exterior + Limpieza y aspirado interior + Secado profesional.',
     short_description: 'Exterior, aspirado interior y secado profesional',
     includes: ['Lavado exterior', 'Limpieza y aspirado interior', 'Secado profesional'],
-    excludes: ['Lavado de chasis', 'Fórmula Marina'],
+    excludes: ['Lavado de chasis', 'Lluvia de Fórmula Marina'],
     base_duration_minutes: 60,
     base_price_usd: 15,
     price_by_vehicle_size: {
@@ -227,9 +227,9 @@ export const SERVICES: Service[] = [
 
 export const ADDONS: ServiceAddon[] = [
   {
-    id: 'ad_masajes',
-    name: 'MASAJES EXTRAS',
-    description: 'Tratamiento y masajes de carrocería bajo inspección',
+    id: 'ad_purificacion',
+    name: 'PURIFICACIÓN INTERNA',
+    description: 'Limpieza y desengrase profundo del motor.',
     price_usd: 0,
     price_by_vehicle_size: null,
     duration_minutes: 30,
@@ -237,19 +237,9 @@ export const ADDONS: ServiceAddon[] = [
     quote_on_inspection: true
   },
   {
-    id: 'ad_motor',
-    name: 'LAVADO DE MOTOR',
-    description: 'Limpieza y desengrase profundo del motor bajo inspección',
-    price_usd: 0,
-    price_by_vehicle_size: null,
-    duration_minutes: 30,
-    is_active: true,
-    quote_on_inspection: true
-  },
-  {
-    id: 'ad_servicio',
-    name: 'SERVICIO DEL VEHÍCULO',
-    description: 'Servicios preventivos o de mecánica rápida bajo inspección',
+    id: 'ad_terapia_preventiva',
+    name: 'TERAPIA PREVENTIVA',
+    description: 'Renovación de fluidos esenciales, cambio de aceite y filtro.',
     price_usd: 0,
     price_by_vehicle_size: null,
     duration_minutes: 45,
@@ -257,12 +247,42 @@ export const ADDONS: ServiceAddon[] = [
     quote_on_inspection: true
   },
   {
-    id: 'ad_tapiceria',
-    name: 'LIMPIEZA DE TAPICERÍA',
-    description: 'Desmanchado profundo e higienización de asientos y alfombras',
+    id: 'ad_exfoliacion',
+    name: 'EXFOLIACIÓN INTERIOR',
+    description: 'Desmanchado profundo e higienización de asientos y alfombras.',
     price_usd: 0,
     price_by_vehicle_size: null,
     duration_minutes: 60,
+    is_active: true,
+    quote_on_inspection: true
+  },
+  {
+    id: 'ad_rejuvenecimiento',
+    name: 'REJUVENECIMIENTO DE MIRADA',
+    description: 'Reemplazo e instalación de bombillos para faros y luces internas.',
+    price_usd: 0,
+    price_by_vehicle_size: null,
+    duration_minutes: 25,
+    is_active: true,
+    quote_on_inspection: true
+  },
+  {
+    id: 'ad_revitalizante',
+    name: 'TRATAMIENTO REVITALIZANTE',
+    description: 'Limpieza, desulfatado y cambio de bornes de batería.',
+    price_usd: 0,
+    price_by_vehicle_size: null,
+    duration_minutes: 20,
+    is_active: true,
+    quote_on_inspection: true
+  },
+  {
+    id: 'ad_articular',
+    name: 'TERAPIA ARTICULAR',
+    description: 'Lubricación profunda de puntos de fricción, suspensión y articulaciones.',
+    price_usd: 0,
+    price_by_vehicle_size: null,
+    duration_minutes: 35,
     is_active: true,
     quote_on_inspection: true
   }
@@ -272,9 +292,7 @@ export const SERVICE_ZONES: ServiceZone[] = [
   { id: 'z_1', name: 'Chacao', municipalities: ['Chacao'], surcharge_usd: 0, avg_travel_minutes: 15, is_active: true },
   { id: 'z_2', name: 'Baruta', municipalities: ['Baruta'], surcharge_usd: 2, avg_travel_minutes: 20, is_active: true },
   { id: 'z_3', name: 'El Hatillo', municipalities: ['El Hatillo'], surcharge_usd: 5, avg_travel_minutes: 30, is_active: true },
-  { id: 'z_4', name: 'Libertador Este', municipalities: ['Libertador'], surcharge_usd: 2, avg_travel_minutes: 20, is_active: true },
-  { id: 'z_5', name: 'Libertador Oeste', municipalities: ['Libertador'], surcharge_usd: 3, avg_travel_minutes: 25, is_active: true },
-  { id: 'z_6', name: 'Los Salias / San Antonio', municipalities: ['Los Salias'], surcharge_usd: 8, avg_travel_minutes: 45, is_active: true }
+  { id: 'z_4', name: 'Sucre', municipalities: ['Sucre'], surcharge_usd: 2, avg_travel_minutes: 20, is_active: true }
 ];
 
 export const TIME_SLOTS: TimeSlot[] = [
@@ -293,7 +311,7 @@ export const MOCK_BOOKINGS: Booking[] = [
     vehicle_id: 'v_1',
     address_id: 'addr_1',
     service_id: 's_gold_22k',
-    addons: [{ addon_id: 'ad_masajes', name: 'MASAJES EXTRAS', price_usd: 0, quantity: 1, quote_on_inspection: true }],
+    addons: [{ addon_id: 'ad_motor', name: 'LAVADO DE MOTOR', price_usd: 0, quantity: 1, quote_on_inspection: true }],
     assigned_technician_id: 'u_2',
     status: 'completed',
     scheduled_date: '2026-09-21',

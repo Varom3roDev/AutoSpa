@@ -373,7 +373,7 @@ export default function BookingPage() {
           service_id: state.service.id,
           status: 'pending_payment',
           scheduled_date: state.scheduledDate,
-          scheduled_time_slot: normSlot,
+          scheduled_time_slot: state.scheduledTimeSlot || normSlot,
           estimated_duration: calculatedDuration || state.service.base_duration_minutes,
           subtotal_usd: pricing.subtotal,
           discount_usd: 0,
@@ -409,8 +409,8 @@ export default function BookingPage() {
         return (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold">Selecciona tu paciente</h2>
-              <p className="text-sm text-muted-foreground">Toca un paciente para continuar o registra uno nuevo con el botón (+)</p>
+              <h2 className="text-lg font-bold">Selecciona tu vehículo</h2>
+              <p className="text-sm text-muted-foreground">Toca un vehículo para continuar o registra uno nuevo con el botón (+)</p>
             </div>
             {isLoadingData && vehiclesList.length === 0 ? (
               <div className="grid gap-3">
@@ -427,7 +427,7 @@ export default function BookingPage() {
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <span>Cargando tus pacientes...</span>
+                      <span>Cargando tus vehículos...</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -437,12 +437,12 @@ export default function BookingPage() {
                 <div className="bg-primary/10 text-primary p-3 rounded-full mb-3">
                   <Car className="h-6 w-6" />
                 </div>
-                <p className="font-semibold text-sm mb-1">Aún no tienes pacientes registrados</p>
+                <p className="font-semibold text-sm mb-1">Aún no tienes vehículos registrados</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Registra tu primer paciente para continuar con la reserva.
+                  Registra tu primer vehículo para continuar con la reserva.
                 </p>
                 <Button size="sm" onClick={() => setIsAddVehicleOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Registrar Paciente
+                  <Plus className="h-4 w-4 mr-1.5" /> Registrar Vehículo
                 </Button>
               </div>
             ) : (
@@ -466,7 +466,7 @@ export default function BookingPage() {
                           <p className="text-sm text-muted-foreground font-mono">{vehicle.plate} • {vehicle.color}</p>
                           <div className="flex items-center gap-1.5 mt-1">
                             <Badge variant="outline" className="text-[10px] uppercase border-primary/40 text-primary">
-                              Paciente
+                              Vehículo
                             </Badge>
                             <Badge variant="secondary" className="text-[11px] capitalize">
                               {vehicle.type === 'motorcycle' ? 'Moto' : (vehicle.size_category === 'large' || vehicle.size_category === 'xlarge' ? 'Camioneta' : 'Carro')}
@@ -485,7 +485,7 @@ export default function BookingPage() {
                   className="w-full flex items-center justify-center gap-2 p-3.5 rounded-xl border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary font-medium text-sm transition-all cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Registrar otro paciente</span>
+                  <span>Registrar otro vehículo</span>
                 </button>
               </div>
             )}
@@ -498,7 +498,7 @@ export default function BookingPage() {
         const isCamioneta = state.vehicle.size_category === 'large' || state.vehicle.size_category === 'xlarge' || ['suv', 'pickup', 'van', 'truck'].includes(state.vehicle.type);
         const patientTypeLabel = isMoto ? 'Moto' : isCamioneta ? 'Camioneta' : 'Carro';
 
-        // Filtrar sesiones según el tipo de paciente:
+        // Filtrar sesiones según el tipo de vehículo:
         // Si es moto -> Solo MOTOS ($10)
         // Si es carro o camioneta -> Solo GOLD 22K y GOLD 24K
         const currentCatalog = servicesList.some(s => s.name.toUpperCase().includes('GOLD')) ? servicesList : SERVICES;
@@ -523,7 +523,7 @@ export default function BookingPage() {
             <div>
               <h2 className="text-lg font-bold">Selecciona la sesión</h2>
               <p className="text-sm text-muted-foreground">
-                Tarifas ajustadas para tu paciente {state.vehicle.brand} {state.vehicle.model} ({patientTypeLabel})
+                Tarifas ajustadas para tu vehículo {state.vehicle.brand} {state.vehicle.model} ({patientTypeLabel})
               </p>
             </div>
             <div className="grid gap-3">
@@ -588,10 +588,11 @@ export default function BookingPage() {
 
       case 2:
         if (!state.vehicle) return null;
-        const currentAddons = addonsList.some(a => a.name.toUpperCase().includes('MASAJES') || a.id === 'ad_masajes') ? addonsList : ADDONS;
+        const currentAddons = addonsList && addonsList.length > 0 ? addonsList : ADDONS;
         const displayAddons = currentAddons.filter(a => 
-          ['ad_masajes', 'ad_motor', 'ad_servicio', 'ad_tapiceria'].includes(a.id) ||
-          ['MASAJES EXTRAS', 'LAVADO DE MOTOR', 'SERVICIO DEL VEHÍCULO', 'LIMPIEZA DE TAPICERÍA'].some(name => a.name.toUpperCase().includes(name))
+          a.id !== 'ad_masajes' && 
+          !a.name.toUpperCase().includes('MASAJES') &&
+          a.is_active !== false
         );
 
         return (
@@ -616,10 +617,10 @@ export default function BookingPage() {
               <AlertCircle className="h-5 w-5 shrink-0 text-amber-400" />
               <div className="text-xs leading-relaxed">
                 <span className="font-bold block text-amber-400 uppercase tracking-wider text-[11px]">
-                  Cotizar bajo inspección del paciente
+                  Cotizar bajo inspección del vehículo
                 </span>
                 <span className="text-muted-foreground text-[11px]">
-                  El precio de estas sesiones adicionales será evaluado y acordado en sitio según las condiciones y estado físico del paciente.
+                  El precio de estas sesiones adicionales será evaluado y acordado en sitio según las condiciones y estado físico del vehículo.
                 </span>
               </div>
             </div>
@@ -690,7 +691,7 @@ export default function BookingPage() {
         return (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-bold">¿Dónde atendemos a tu paciente?</h2>
+              <h2 className="text-lg font-bold">¿Dónde atendemos a tu vehículo?</h2>
               <p className="text-sm text-muted-foreground">Toca una dirección guardada o agrega una nueva</p>
             </div>
             {isLoadingData && addressesList.length === 0 ? (
@@ -720,7 +721,7 @@ export default function BookingPage() {
                 </div>
                 <p className="font-semibold text-sm mb-1">Aún no tienes direcciones registradas</p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Agrega el lugar donde realizaremos la sesión a tu paciente para continuar.
+                  Agrega el lugar donde realizaremos la sesión a tu vehículo para continuar.
                 </p>
                 <Button size="sm" onClick={() => setIsAddAddressOpen(true)} className="cursor-pointer">
                   <Plus className="h-4 w-4 mr-1.5" /> Agregar Dirección
@@ -839,7 +840,7 @@ export default function BookingPage() {
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-primary shrink-0" />
                   <p className="text-xs text-foreground font-medium">
-                    Sesión de <strong>{durationMinutes} min</strong> para tu paciente (+ 40 min de traslado en moto incluido).
+                    Sesión de <strong>{durationMinutes} min</strong> para tu vehículo (+ 40 min de traslado en moto incluido).
                   </p>
                 </div>
                 <Badge variant="outline" className="text-[10px] bg-primary/20 border-primary/30 text-primary font-bold shrink-0">
@@ -964,7 +965,7 @@ export default function BookingPage() {
             
             <Card className="shadow-sm">
               <CardContent className="p-4 space-y-3.5">
-                {/* Paciente */}
+                {/* Vehículo */}
                 <div className="flex gap-3 items-center">
                   <div className="bg-primary/10 p-2.5 rounded-full text-primary shrink-0">
                     <Car className="h-5 w-5" />
@@ -973,7 +974,7 @@ export default function BookingPage() {
                     <div className="flex items-center gap-1.5">
                       <p className="font-semibold">{state.vehicle?.brand} {state.vehicle?.model}</p>
                       <Badge variant="outline" className="text-[10px] uppercase border-primary/40 text-primary">
-                        Paciente
+                        Vehículo
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground font-mono">{state.vehicle?.plate} • {state.vehicle?.color}</p>
@@ -1016,7 +1017,7 @@ export default function BookingPage() {
                       })}
                       {state.addons.some(a => a.quote_on_inspection) && (
                         <div className="mt-1 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] leading-snug">
-                          * Las sesiones extras se cotizarán bajo inspección física del paciente en el lugar.
+                          * Las sesiones extras se cotizarán bajo inspección física del vehículo en el lugar.
                         </div>
                       )}
                     </div>
@@ -1046,7 +1047,7 @@ export default function BookingPage() {
                       {state.scheduledDate || next7Days[0]}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Turno: {TIME_SLOTS.find(s => s.id === state.scheduledTimeSlot)?.label || "Mañana"}
+                      Horario: {formatTimeSlot(state.scheduledTimeSlot || undefined)}
                     </p>
                   </div>
                 </div>
@@ -1194,9 +1195,9 @@ export default function BookingPage() {
       <Dialog open={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Registrar Paciente</DialogTitle>
+            <DialogTitle>Registrar Vehículo</DialogTitle>
             <DialogDescription>
-              Ingresa los datos del paciente (vehículo) para asignarlo de inmediato a tu sesión.
+              Ingresa los datos del vehículo (vehículo) para asignarlo de inmediato a tu sesión.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onAddVehicleSubmit)} className="space-y-4 pt-2">
@@ -1238,7 +1239,7 @@ export default function BookingPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="b-type">Tipo de Paciente</Label>
+              <Label htmlFor="b-type">Tipo de Vehículo</Label>
               <Select 
                 value={selectedType} 
                 onValueChange={(val: string | null) => {
@@ -1249,7 +1250,7 @@ export default function BookingPage() {
                 }}
               >
                 <SelectTrigger id="b-type">
-                  <SelectValue placeholder="Selecciona el tipo de paciente" />
+                  <SelectValue placeholder="Selecciona el tipo de vehículo" />
                 </SelectTrigger>
                 <SelectContent>
                   {VEHICLE_TYPE_OPTIONS.map((opt) => (
@@ -1263,7 +1264,7 @@ export default function BookingPage() {
             </div>
 
             <Button type="submit" className="w-full mt-2 h-11">
-              Guardar Paciente y Continuar
+              Guardar Vehículo y Continuar
             </Button>
           </form>
         </DialogContent>
@@ -1309,7 +1310,6 @@ export default function BookingPage() {
                 <option value="Baruta">Baruta</option>
                 <option value="El Hatillo">El Hatillo</option>
                 <option value="Sucre">Sucre</option>
-                <option value="Libertador">Libertador</option>
               </select>
             </div>
 

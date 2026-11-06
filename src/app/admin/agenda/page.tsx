@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TimeRemainingBadge } from "@/components/shared/time-remaining-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -182,7 +183,10 @@ export default function AdminAgendaPage() {
                           {formatTimeSlot(booking.scheduled_time_slot)}
                         </span>
                       </div>
-                      <StatusBadge status={booking.status} />
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        <TimeRemainingBadge booking={booking} size="sm" />
+                        <StatusBadge status={booking.status} />
+                      </div>
                     </div>
 
                     <h3 className="font-semibold text-base mb-1">

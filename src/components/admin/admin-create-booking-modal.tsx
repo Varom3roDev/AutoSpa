@@ -64,7 +64,7 @@ interface AdminCreateBookingModalProps {
   onSuccess: () => void;
 }
 
-const MUNICIPALITIES = ['Chacao', 'Baruta', 'El Hatillo', 'Sucre', 'Libertador'];
+const MUNICIPALITIES = ['Chacao', 'Baruta', 'El Hatillo', 'Sucre'];
 
 const VEHICLE_TYPES: { type: VehicleType; label: string; size: VehicleSizeCategory }[] = [
   { type: 'motorcycle', label: 'Moto', size: 'small' },
@@ -340,18 +340,18 @@ export function AdminCreateBookingModal({
         finalCustomerId = createdCustomer.id;
       }
 
-      // Validar / Crear Vehículo (Paciente)
+      // Validar / Crear Vehículo (Vehículo)
       let finalVehicleId = selectedVehicleId;
       if (isNewVehicle || !finalVehicleId) {
         if (!newVehiclePlate.trim()) {
-          setErrorMessage('Por favor ingresa la placa del paciente (ej: AB123CD).');
+          setErrorMessage('Por favor ingresa la placa del vehículo (ej: AB123CD).');
           setIsSubmitting(false);
           return;
         }
         const createdVeh = await insertVehicle({
           customer_id: finalCustomerId,
           plate: newVehiclePlate.trim().toUpperCase(),
-          brand: newVehicleBrand.trim() || 'Paciente',
+          brand: newVehicleBrand.trim() || 'Vehículo',
           model: newVehicleModel.trim() || 'Particular',
           year: new Date().getFullYear(),
           color: 'No especificado',
@@ -366,7 +366,7 @@ export function AdminCreateBookingModal({
       let finalAddressId = selectedAddressId;
       if (isNewAddress || !finalAddressId) {
         if (!newAddressLine.trim()) {
-          setErrorMessage('Por favor ingresa la dirección de atención del paciente.');
+          setErrorMessage('Por favor ingresa la dirección de atención del vehículo.');
           setIsSubmitting(false);
           return;
         }
@@ -433,7 +433,7 @@ export function AdminCreateBookingModal({
                 Programar Sesión Directa
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Crea una cita de sesión directamente para el paciente y notifícala en tiempo real a las partes.
+                Crea una cita de sesión directamente para el vehículo y notifícala en tiempo real a las partes.
               </DialogDescription>
             </div>
           </div>
@@ -533,12 +533,12 @@ export function AdminCreateBookingModal({
             )}
           </div>
 
-          {/* 2. SECCIÓN PACIENTE */}
+          {/* 2. SECCIÓN VEHÍCULO */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Car className="w-3.5 h-3.5 text-primary" />
-                <span>2. Paciente</span>
+                <span>2. Vehículo</span>
               </label>
               {!isNewClient && clientVehicles.length > 0 && (
                 <button
@@ -546,7 +546,7 @@ export function AdminCreateBookingModal({
                   onClick={() => setIsNewVehicle(!isNewVehicle)}
                   className="text-xs text-primary hover:underline font-medium"
                 >
-                  {isNewVehicle ? '← Mis pacientes' : '+ Otro paciente'}
+                  {isNewVehicle ? '← Mis vehículos' : '+ Otro vehículo'}
                 </button>
               )}
             </div>
@@ -599,7 +599,7 @@ export function AdminCreateBookingModal({
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Tipo de Paciente</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Tipo de Vehículo</label>
                   <select
                     value={newVehicleType}
                     onChange={(e) => setNewVehicleType(e.target.value as VehicleType)}

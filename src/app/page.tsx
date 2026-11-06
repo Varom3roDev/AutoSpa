@@ -63,12 +63,12 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white mb-6 leading-[1.1] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
-            <span className="gold-gradient-text drop-shadow-[0_4px_25px_rgba(213,174,51,0.4)]">Tu paciente impecable,</span>
+            <span className="gold-gradient-text drop-shadow-[0_4px_25px_rgba(213,174,51,0.4)]">Tu vehículo impecable,</span>
             <br className="hidden sm:inline" /> donde tú estés
           </h1>
 
           <p className="text-base sm:text-lg md:text-xl text-[#A0ABBA] max-w-2xl mx-auto mb-10 leading-relaxed drop-shadow-md">
-            Sesiones profesionales de spa y detallado automotriz a domicilio. Reserva en 1 minuto y consiente a tu paciente sin moverte de casa.
+            Sesiones profesionales de spa y detallado automotriz a domicilio. Reserva en 1 minuto y consiente a tu vehículo sin moverte de casa.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-14">
@@ -108,7 +108,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">¿Cómo funciona?</h2>
-            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Un proceso simple para tener a tu paciente impecable sin moverte de casa ni hacer filas.</p>
+            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Un proceso simple para tener a tu vehículo impecable sin moverte de casa ni hacer filas.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="bg-[#181A20] border-[#2B313A] shadow-md hover:border-[#d5ae33]/40 transition-colors">
@@ -155,7 +155,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Nuestras Sesiones</h2>
-            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Cuidado y spa automotriz de alta gama adaptado a cada paciente.</p>
+            <p className="text-[#848E9C] max-w-xl mx-auto text-sm md:text-base">Cuidado y spa automotriz de alta gama adaptado a cada vehículo.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {SERVICES.map((service: Service) => (
@@ -216,7 +216,7 @@ export default function LandingPage() {
       {/* CTA section */}
       <section className="py-16 px-4 md:px-6 lg:px-8 bg-gradient-to-b from-[#181A20] to-[#0B0E11] text-center border-b border-[#2B313A]">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">¿Listo para consentir a tu paciente?</h2>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">¿Listo para consentir a tu vehículo?</h2>
           <p className="text-[#848E9C] text-sm md:text-base mb-8 max-w-xl mx-auto">
             Reserva la sesión a domicilio en pocos minutos y disfruta de más tiempo libre mientras nosotros nos encargamos del cuidado integral.
           </p>
@@ -226,7 +226,7 @@ export default function LandingPage() {
                 Reservar Sesión
               </Button>
             </Link>
-            <Link href="https://wa.me/584241979461?text=Hola%20AutoSpa,%20deseo%20informaci%C3%B3n%20sobre%20sus%20sesiones%20de%20cuidado%20para%20pacientes" target="_blank" rel="noopener noreferrer">
+            <Link href="https://wa.me/584241979461?text=Hola%20AutoSpa,%20deseo%20informaci%C3%B3n%20sobre%20sus%20sesiones%20de%20cuidado%20para%20vehiculos" target="_blank" rel="noopener noreferrer">
               <Button size="lg" variant="outline" className="w-full sm:w-auto text-base font-semibold px-8 h-13 rounded-full border-[#2B313A] bg-[#1E2329] text-white hover:bg-[#2B313A]">
                 <MessageCircle className="mr-2 h-5 w-5 text-[#0ECB81]" />
                 WhatsApp Directo
@@ -248,7 +248,7 @@ export default function LandingPage() {
               />
             </div>
             <p className="text-[#848E9C] max-w-sm leading-relaxed">
-              Sesiones de spa y cuidado de pacientes a domicilio. Tu paciente impecable, donde tú estés.
+              Sesiones de spa y cuidado de vehículos a domicilio. Tu vehículo impecable, donde tú estés.
             </p>
           </div>
           <div>
@@ -269,7 +269,7 @@ export default function LandingPage() {
               </li>
               <li className="flex items-center gap-2">
                 <Mail size={14} className="text-[#d5ae33]" />
-                <span>contacto@autospa.com.ve</span>
+                <a href="mailto:chividattechristian@gmail.com" className="hover:text-white transition-colors">chividattechristian@gmail.com</a>
               </li>
             </ul>
           </div>

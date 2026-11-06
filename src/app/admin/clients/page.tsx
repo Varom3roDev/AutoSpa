@@ -140,7 +140,7 @@ export default function ClientsPage() {
                       <div className="flex items-center gap-2 mt-2 pt-2 border-t">
                         <Badge variant="secondary" className="text-xs">
                           <Car className="h-3 w-3 mr-1" />
-                          {vehicleCount} paciente{vehicleCount !== 1 ? "s" : ""}
+                          {vehicleCount} vehículo{vehicleCount !== 1 ? "s" : ""}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
                           <CalendarDays className="h-3 w-3 mr-1" />

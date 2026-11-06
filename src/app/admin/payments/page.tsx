@@ -384,14 +384,6 @@ export default function PaymentsAdminPage() {
               >
                 ⚡ Zelle
               </Button>
-              <Button
-                variant={methodFilter === "punto_venta" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs rounded-full shrink-0"
-                onClick={() => setMethodFilter("punto_venta")}
-              >
-                💳 Punto
-              </Button>
             </div>
           </div>
 
@@ -625,7 +617,6 @@ export default function PaymentsAdminPage() {
                     <option value="efectivo_ves">Efectivo (Bs.)</option>
                     <option value="zelle">Zelle (USD)</option>
                     <option value="transferencia">Transferencia Bancaria</option>
-                    <option value="punto_venta">Punto de Venta</option>
                   </select>
                 </div>
               </div>

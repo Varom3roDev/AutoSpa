@@ -550,7 +550,7 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle>Nueva Dirección</DialogTitle>
             <DialogDescription>
-              Ingresa el lugar donde se atenderá a tu paciente para la sesión.
+              Ingresa el lugar donde se atenderá a tu vehículo para la sesión.
             </DialogDescription>
           </DialogHeader>
 
@@ -585,7 +585,6 @@ export default function ProfilePage() {
                 <option value="Baruta">Baruta</option>
                 <option value="El Hatillo">El Hatillo</option>
                 <option value="Sucre">Sucre</option>
-                <option value="Libertador">Libertador</option>
               </select>
             </div>
 
@@ -638,7 +637,7 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle>Editar Dirección</DialogTitle>
             <DialogDescription>
-              Modifica los datos del lugar donde se atenderá a tu paciente.
+              Modifica los datos del lugar donde se atenderá a tu vehículo.
             </DialogDescription>
           </DialogHeader>
 
@@ -673,7 +672,6 @@ export default function ProfilePage() {
                 <option value="Baruta">Baruta</option>
                 <option value="El Hatillo">El Hatillo</option>
                 <option value="Sucre">Sucre</option>
-                <option value="Libertador">Libertador</option>
               </select>
             </div>
 
@@ -787,16 +785,6 @@ export default function ProfilePage() {
               </p>
             </div>
 
-            {/* Punto de Venta */}
-            <div className="p-3 rounded-lg border bg-muted/40 space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-blue-600">
-                <CreditCard className="h-4 w-4" />
-                <span>Punto de Venta / Tarjeta</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Nuestros técnicos cuentan con punto de venta inalámbrico al momento de la sesión.
-              </p>
-            </div>
           </div>
 
           <DialogFooter>

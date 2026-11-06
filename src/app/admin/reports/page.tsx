@@ -173,14 +173,14 @@ export default function ReportsAdminPage() {
     let pagoMovil = 0;
     let efectivo = 0;
     let zelle = 0;
-    let punto = 0;
+    let transferencia = 0;
 
     filteredBookings.forEach((b) => {
       const method = b.payment_method || (b.total_usd > 25 ? "zelle" : "pago_movil");
       if (method.includes("movil")) pagoMovil++;
       else if (method.includes("efectivo") || method.includes("cash")) efectivo++;
       else if (method.includes("zelle")) zelle++;
-      else punto++;
+      else transferencia++;
     });
 
     const total = filteredBookings.length || 1;
@@ -188,7 +188,7 @@ export default function ReportsAdminPage() {
       { label: "Pago Móvil", count: pagoMovil, pct: Math.round((pagoMovil / total) * 100), icon: Smartphone, color: "bg-blue-500" },
       { label: "Efectivo USD / Bs.", count: efectivo, pct: Math.round((efectivo / total) * 100), icon: Banknote, color: "bg-emerald-500" },
       { label: "Zelle", count: zelle, pct: Math.round((zelle / total) * 100), icon: Send, color: "bg-purple-500" },
-      { label: "Punto de Venta", count: punto, pct: Math.round((punto / total) * 100), icon: CreditCard, color: "bg-teal-500" },
+      { label: "Transferencia Bancaria", count: transferencia, pct: Math.round((transferencia / total) * 100), icon: CreditCard, color: "bg-teal-500" },
     ];
   }, [filteredBookings]);
 

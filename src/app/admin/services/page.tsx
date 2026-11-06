@@ -378,9 +378,15 @@ export default function ServicesAdminPage() {
                         </p>
                       )}
                       <div className="flex items-center gap-3 mt-2 text-xs">
-                        <span className="font-bold text-sm text-primary">
-                          {formatCurrency(addon.price_usd)}
-                        </span>
+                        {addon.quote_on_inspection || Number(addon.price_usd) === 0 ? (
+                          <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 text-xs font-semibold">
+                            Cotizar bajo inspección
+                          </Badge>
+                        ) : (
+                          <span className="font-bold text-sm text-primary">
+                            {formatCurrency(addon.price_usd)}
+                          </span>
+                        )}
                         {addon.duration_minutes > 0 && (
                           <span className="flex items-center gap-1 text-muted-foreground">
                             <Clock className="h-3 w-3" />+{addon.duration_minutes} min
@@ -435,7 +441,7 @@ export default function ServicesAdminPage() {
               {isNewService ? "Nueva Sesión" : "Editar Sesión"}
             </DialogTitle>
             <DialogDescription>
-              Configura los datos de la sesión y sus tarifas según el tamaño del paciente.
+              Configura los datos de la sesión y sus tarifas según el tamaño del vehículo.
             </DialogDescription>
           </DialogHeader>
 
@@ -507,7 +513,7 @@ export default function ServicesAdminPage() {
               {/* Price per vehicle size category */}
               <div className="space-y-2 pt-2 border-t">
                 <Label className="font-semibold text-sm">
-                  Precios en USD ($) por tamaño de paciente:
+                  Precios en USD ($) por tamaño de vehículo:
                 </Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -704,7 +710,29 @@ export default function ServicesAdminPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="add_quote" className="font-semibold cursor-pointer">Cotizar bajo inspección</Label>
+                    <p className="text-xs text-muted-foreground">Si está activo, no se cobra precio fijo inicial; se evalúa en sitio.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="add_quote"
+                    className="h-4 w-4 rounded border-input cursor-pointer"
+                    checked={Boolean(editingAddon.quote_on_inspection)}
+                    onChange={(e) =>
+                      setEditingAddon({
+                        ...editingAddon,
+                        quote_on_inspection: e.target.checked,
+                        price_usd: e.target.checked ? 0 : (editingAddon.price_usd || 5),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              {!editingAddon.quote_on_inspection && (
                 <div className="space-y-1.5">
                   <Label htmlFor="add_price">Precio USD ($)</Label>
                   <div className="relative">
@@ -728,7 +756,9 @@ export default function ServicesAdminPage() {
                     />
                   </div>
                 </div>
+              )}
 
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="add_duration">Tiempo extra (min)</Label>
                   <Input
@@ -746,24 +776,24 @@ export default function ServicesAdminPage() {
                     }
                   />
                 </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="add_status">Estado</Label>
-                <select
-                  id="add_status"
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
-                  value={editingAddon.is_active ? "active" : "inactive"}
-                  onChange={(e) =>
-                    setEditingAddon({
-                      ...editingAddon,
-                      is_active: e.target.value === "active",
-                    })
-                  }
-                >
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                </select>
+                <div className="space-y-1.5">
+                  <Label htmlFor="add_status">Estado</Label>
+                  <select
+                    id="add_status"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
+                    value={editingAddon.is_active ? "active" : "inactive"}
+                    onChange={(e) =>
+                      setEditingAddon({
+                        ...editingAddon,
+                        is_active: e.target.value === "active",
+                      })
+                    }
+                  >
+                    <option value="active">Activo</option>
+                    <option value="inactive">Inactivo</option>
+                  </select>
+                </div>
               </div>
 
               <DialogFooter className="pt-3 gap-2 sm:gap-0">

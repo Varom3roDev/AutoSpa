@@ -763,11 +763,15 @@ export function PaymentReportCard({
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <Label htmlFor="pay_reference" className="text-xs">
-                  N° de Referencia <span className="text-destructive">*</span>
+                  {selectedMethod === 'pago_movil' ? (
+                    <>Pago Móvil, últimos 4 dígitos <span className="text-destructive">*</span></>
+                  ) : (
+                    <>N° de Referencia <span className="text-destructive">*</span></>
+                  )}
                 </Label>
                 <Input
                   id="pay_reference"
-                  placeholder="Ej. 184920"
+                  placeholder={selectedMethod === 'pago_movil' ? 'Ej. 4920' : 'Ej. 184920'}
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   className="h-10 text-sm font-mono"

@@ -33,17 +33,17 @@ function getStatusNotificationDetails(status: string) {
     case "en_route":
       return {
         title: "🚗 ¡Tu técnico va en camino!",
-        message: "El especialista ya inició el viaje hacia la ubicación de tu paciente.",
+        message: "El especialista ya inició el viaje hacia la ubicación de tu vehículo.",
       };
     case "arrived":
       return {
         title: "📍 ¡Tu técnico ha llegado!",
-        message: "El especialista ya está listo para atender a tu paciente.",
+        message: "El especialista ya está listo para atender a tu vehículo.",
       };
     case "in_progress":
       return {
         title: "🫧 ¡Sesión en proceso!",
-        message: "Estamos consintiendo y dejando impecable a tu paciente.",
+        message: "Estamos consintiendo y dejando impecable a tu vehículo.",
       };
     case "quality_check":
       return {
@@ -52,7 +52,7 @@ function getStatusNotificationDetails(status: string) {
       };
     case "completed":
       return {
-        title: "✨ ¡Paciente listo e impecable!",
+        title: "✨ ¡Vehículo listo e impecable!",
         message: "Tu sesión ha concluido exitosamente. ¡Gracias por elegir AutoSpa!",
       };
     default:
@@ -214,7 +214,7 @@ export default function ClientDashboardPage() {
           />
           <div>
             <h1 className="text-xl font-extrabold leading-tight text-white">Hola, {firstName}</h1>
-            <p className="text-muted-foreground text-xs">¿Tu paciente necesita una sesión hoy?</p>
+            <p className="text-muted-foreground text-xs">¿Tu vehículo necesita una sesión hoy?</p>
           </div>
         </div>
         <Link href="/client/profile" title="Ver mi perfil">

@@ -37,7 +37,8 @@ export async function fetchServices(): Promise<Service[]> {
 
     if (!error && data && data.length > 0) {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('autospa_services_catalog_v4', JSON.stringify(data));
+        localStorage.removeItem('autospa_services_catalog_v4');
+        localStorage.setItem('autospa_services_catalog_v5', JSON.stringify(data));
       }
       return data as Service[];
     }
@@ -45,13 +46,14 @@ export async function fetchServices(): Promise<Service[]> {
     console.warn('Supabase fetchServices error, fallback to cache:', err);
   }
 
-  // 2. Check local storage cache for version 4
+  // 2. Check local storage cache for version 5
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem('autospa_services_catalog');
       localStorage.removeItem('autospa_services_catalog_v3');
+      localStorage.removeItem('autospa_services_catalog_v4');
 
-      const stored = localStorage.getItem('autospa_services_catalog_v4');
+      const stored = localStorage.getItem('autospa_services_catalog_v5');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0 && parsed.some((s: Service) => s.id === 's_gold_24k' || s.name.includes('GOLD'))) {
@@ -59,11 +61,11 @@ export async function fetchServices(): Promise<Service[]> {
         }
       }
     } catch (e) {
-      console.warn('Error reading autospa_services_catalog_v4:', e);
+      console.warn('Error reading autospa_services_catalog_v5:', e);
     }
 
-    // Seed official catalog v4
-    localStorage.setItem('autospa_services_catalog_v4', JSON.stringify(SERVICES));
+    // Seed official catalog v5
+    localStorage.setItem('autospa_services_catalog_v5', JSON.stringify(SERVICES));
   }
 
   return SERVICES;
@@ -120,28 +122,50 @@ export async function fetchServiceZones(onlyActive: boolean = false): Promise<Se
  * EXTRAS / ADICIONALES
  */
 export async function fetchServiceAddons(): Promise<ServiceAddon[]> {
-  // 1. Check local storage cache for version 3
+  // 1. Try Supabase first
+  try {
+    const { data, error } = await supabase
+      .from('service_addons')
+      .select('*')
+      .eq('is_active', true);
+    if (!error && data && data.length > 0) {
+      const filtered = data.filter((a: ServiceAddon) => a.id !== 'ad_masajes' && !a.name.toUpperCase().includes('MASAJES'));
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('autospa_addons_catalog');
+        localStorage.removeItem('autospa_addons_catalog_v3');
+        localStorage.removeItem('autospa_addons_catalog_v4');
+        localStorage.setItem('autospa_addons_catalog_v5', JSON.stringify(filtered));
+      }
+      return filtered as ServiceAddon[];
+    }
+  } catch (err) {
+    console.warn('Supabase fetchServiceAddons error:', err);
+  }
+
+  // 2. Check local storage cache for version 5
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem('autospa_addons_catalog');
       localStorage.removeItem('autospa_addons_catalog_v3');
+      localStorage.removeItem('autospa_addons_catalog_v4');
 
-      const stored = localStorage.getItem('autospa_addons_catalog_v3');
+      const stored = localStorage.getItem('autospa_addons_catalog_v5');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(a => a.id === 'ad_masajes' || a.name.includes('MASAJES'))) {
-          return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(a => a.id !== 'ad_masajes' && !a.name.toUpperCase().includes('MASAJES'));
         }
       }
     } catch (e) {
-      console.warn('Error reading autospa_addons_catalog_v3:', e);
+      console.warn('Error reading autospa_addons_catalog_v5:', e);
     }
 
-    // Seed official addons v3
-    localStorage.setItem('autospa_addons_catalog_v3', JSON.stringify(ADDONS));
+    // Seed official addons v5
+    const filteredAddons = ADDONS.filter(a => a.id !== 'ad_masajes' && !a.name.toUpperCase().includes('MASAJES'));
+    localStorage.setItem('autospa_addons_catalog_v5', JSON.stringify(filteredAddons));
   }
 
-  return ADDONS;
+  return ADDONS.filter(a => a.id !== 'ad_masajes' && !a.name.toUpperCase().includes('MASAJES'));
 }
 
 /**
@@ -763,12 +787,26 @@ export async function insertBooking(
   sendRealtimeBroadcast('client-reservations-list-realtime', 'client_booking_updated', { bookingId: newBooking.id, status: newBooking.status, code: newBooking.code, customerId: newBooking.customer_id });
   sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', { bookingId: newBooking.id, status: newBooking.status, code: newBooking.code, customerId: newBooking.customer_id });
   sendRealtimeBroadcast('client-reservations-list-realtime', 'new_booking', { bookingId: newBooking.id, status: newBooking.status, code: newBooking.code, customerId: newBooking.customer_id });
+  syncBookingToCloud('upsert', newBooking);
   if (newBooking.assigned_technician_id) {
     sendRealtimeBroadcast('tech-assignments-realtime', 'tech_assigned', { bookingId: newBooking.id, technicianId: newBooking.assigned_technician_id, code: newBooking.code });
     sendRealtimeBroadcast('tech-current-realtime', 'tech_assigned', { bookingId: newBooking.id, technicianId: newBooking.assigned_technician_id, code: newBooking.code });
   }
 
   return newBooking;
+}
+
+
+async function syncBookingToCloud(action: 'upsert' | 'delete' | 'update_status' | 'reschedule', booking?: any, bookingId?: string) {
+  try {
+    await fetch('/api/admin/bookings/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, booking, bookingId }),
+    });
+  } catch (err) {
+    console.warn('Sync booking to cloud notice:', err);
+  }
 }
 
 function sendRealtimeBroadcast(topic: string, event: string, payload: any) {
@@ -839,6 +877,7 @@ export async function updateBookingStatus(
     sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', { bookingId, status: newStatus, code: bookingCode, customerId });
     sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', { bookingId, status: newStatus, code: bookingCode, customerId, notes });
     sendRealtimeBroadcast('tech-assignments-realtime', 'tech_order_updated', { bookingId, status: newStatus, code: bookingCode, technicianId });
+    syncBookingToCloud('update_status', { status: newStatus, notes }, bookingId);
 
     return true;
   } catch (err) {
@@ -917,6 +956,7 @@ export async function rescheduleBooking(
     } catch {}
 
     sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', { bookingId, date: newDate });
+    syncBookingToCloud('reschedule', { scheduled_date: newDate, scheduled_time_slot: newTimeSlot, notes: updatedNotes }, bookingId);
 
     return true;
   } catch (err) {
@@ -1111,6 +1151,7 @@ export async function deleteBooking(bookingId: string): Promise<boolean> {
     sendRealtimeBroadcast(`client-booking-${bookingId}-realtime`, 'client_booking_updated', { bookingId, status: 'cancelled', code: bookingCode, customerId });
     sendRealtimeBroadcast('tech-assignments-realtime', 'tech_order_updated', { bookingId, status: 'cancelled', code: bookingCode, technicianId });
     sendRealtimeBroadcast('tech-current-realtime', 'tech_order_updated', { bookingId, status: 'cancelled', code: bookingCode, technicianId });
+    syncBookingToCloud('delete', undefined, bookingId);
 
     return true;
   } catch (err) {
@@ -1384,11 +1425,11 @@ export async function insertAddon(addon: ServiceAddon): Promise<ServiceAddon | n
   // 1. Save to local storage
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem('autospa_addons_catalog_v3');
+      const stored = localStorage.getItem('autospa_addons_catalog_v5');
       let list: ServiceAddon[] = stored ? JSON.parse(stored) : [...ADDONS];
       const filtered = list.filter(a => a.id !== addonWithId.id);
       filtered.push(addonWithId);
-      localStorage.setItem('autospa_addons_catalog_v3', JSON.stringify(filtered));
+      localStorage.setItem('autospa_addons_catalog_v5', JSON.stringify(filtered));
       window.dispatchEvent(new Event('autospa_addons_updated'));
     } catch (err) {
       console.warn('Error saving addon to local storage:', err);
@@ -1419,7 +1460,7 @@ export async function updateAddon(addonId: string, updates: Partial<ServiceAddon
   // 1. Update in local storage
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem('autospa_addons_catalog_v3');
+      const stored = localStorage.getItem('autospa_addons_catalog_v5');
       let list: ServiceAddon[] = stored ? JSON.parse(stored) : [...ADDONS];
       const index = list.findIndex(a => a.id === addonId);
       if (index !== -1) {
@@ -1429,7 +1470,7 @@ export async function updateAddon(addonId: string, updates: Partial<ServiceAddon
         updatedAddon = { id: addonId, ...updates } as ServiceAddon;
         list.push(updatedAddon);
       }
-      localStorage.setItem('autospa_addons_catalog_v3', JSON.stringify(list));
+      localStorage.setItem('autospa_addons_catalog_v5', JSON.stringify(list));
       window.dispatchEvent(new Event('autospa_addons_updated'));
     } catch (err) {
       console.warn('Error updating addon in local storage:', err);
@@ -1459,10 +1500,10 @@ export async function deleteAddon(addonId: string): Promise<boolean> {
   // 1. Remove from local storage
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem('autospa_addons_catalog_v3');
+      const stored = localStorage.getItem('autospa_addons_catalog_v5');
       let list: ServiceAddon[] = stored ? JSON.parse(stored) : [...ADDONS];
       const filtered = list.filter(a => a.id !== addonId);
-      localStorage.setItem('autospa_addons_catalog_v3', JSON.stringify(filtered));
+      localStorage.setItem('autospa_addons_catalog_v5', JSON.stringify(filtered));
       window.dispatchEvent(new Event('autospa_addons_updated'));
     } catch (err) {
       console.warn('Error deleting addon from local storage:', err);

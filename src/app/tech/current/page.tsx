@@ -444,7 +444,7 @@ export default function TechnicianCurrentOrderPage() {
                   onClick={() => handleStatusTransition("in_progress", "Sesión de cuidado iniciada")}
                 >
                   <Play className="h-5 w-5" />
-                  {isUpdating ? "Actualizando..." : "3. Iniciar Sesión con Paciente"}
+                  {isUpdating ? "Actualizando..." : "3. Iniciar Sesión con Vehículo"}
                 </Button>
               )}
 
@@ -453,7 +453,7 @@ export default function TechnicianCurrentOrderPage() {
                   size="lg"
                   className="w-full h-14 text-base font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md gap-2"
                   disabled={isUpdating}
-                  onClick={() => handleStatusTransition("quality_check", "Sesión completada, pasando a control de calidad del paciente")}
+                  onClick={() => handleStatusTransition("quality_check", "Sesión completada, pasando a control de calidad del vehículo")}
                 >
                   <Sparkles className="h-5 w-5" />
                   {isUpdating ? "Actualizando..." : "4. Sesión Lista (Control de Calidad)"}
@@ -554,7 +554,7 @@ export default function TechnicianCurrentOrderPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-1.5">
-              <Car className="h-4 w-4 text-primary" /> Paciente y Sesión
+              <Car className="h-4 w-4 text-primary" /> Vehículo y Sesión
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -562,7 +562,7 @@ export default function TechnicianCurrentOrderPage() {
             <div className="p-3 border rounded-lg bg-muted/20 flex items-center justify-between">
               <div>
                 <p className="font-bold text-sm text-foreground">
-                  {vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.year})` : "Paciente registrado"}
+                  {vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.year})` : "Vehículo registrado"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Color: {vehicle?.color || "N/A"} • Tipo: {vehicle?.type?.toUpperCase() || "SEDÁN"}
@@ -590,7 +590,7 @@ export default function TechnicianCurrentOrderPage() {
             {activeBooking.addons && activeBooking.addons.length > 0 && (
               <div className="pt-2 border-t">
                 <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">
-                  Sesiones Extras solicitadas (Inspección del Paciente):
+                  Sesiones Extras solicitadas (Inspección del Vehículo):
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {activeBooking.addons.map((a, idx) => (

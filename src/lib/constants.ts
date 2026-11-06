@@ -43,7 +43,7 @@ export const DEFAULT_TAX_RATE = 0;
 /** App contact info */
 export const CONTACT = {
   phone: "+58 424 197 9461",
-  email: "contacto@autospa.com.ve",
+  email: "chividattechristian@gmail.com",
   whatsapp: "584241979461",
   whatsappUrl: "https://wa.me/584241979461?text=Hola%20AutoSpa,%20deseo%20informaci%C3%B3n%20sobre%20sus%20servicios%20de%20lavado",
   instagram: "@autospa.ccs",
@@ -51,7 +51,7 @@ export const CONTACT = {
 
 /** Booking step names (for wizard) */
 export const BOOKING_STEPS = [
-  { key: "vehicle", label: "Paciente" },
+  { key: "vehicle", label: "Vehículo" },
   { key: "service", label: "Sesión" },
   { key: "addons", label: "Sesiones Extras" },
   { key: "address", label: "Dirección" },
