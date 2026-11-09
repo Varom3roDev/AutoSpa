@@ -131,11 +131,39 @@ export default function TechnicianCurrentOrderPage() {
           });
         }
       })
+      .on("broadcast", { event: "booking_rescheduled" }, () => {
+        loadCurrentOrder();
+      })
       .subscribe();
+
+    window.addEventListener("autospa_booking_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("autospa_global_sync");
+      bc.onmessage = (event) => {
+        const { event: evName, payload } = event.data || {};
+        loadCurrentOrder();
+        if (evName === "tech_assigned") {
+          const techId = payload?.technicianId;
+          if (!techId || techId === user?.id || user?.role === "technician") {
+            playNotificationSound();
+            setNewOrderAlert({ code: payload?.code || "Nueva Asignación" });
+            setTimeout(() => setNewOrderAlert(null), 8000);
+          }
+        }
+      };
+    } catch {}
 
     return () => {
       window.removeEventListener("autospa_bookings_updated", handleUpdate);
+      window.removeEventListener("autospa_booking_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
       supabase.removeChannel(channel);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, [user?.id, user?.role]);
 

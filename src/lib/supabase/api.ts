@@ -526,6 +526,73 @@ export async function setDefaultCustomerAddress(customerId: string, addressId: s
 /**
  * RESERVAS
  */
+function pickNewerBooking(existing: Booking | undefined, candidate: Booking): Booking {
+  if (!existing) return candidate;
+  const existingTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
+  const candidateTime = new Date(candidate.updated_at || candidate.created_at || 0).getTime();
+  if (candidateTime >= existingTime) {
+    return { ...existing, ...candidate };
+  }
+  return { ...candidate, ...existing };
+}
+
+async function fetchCloudSyncedBookings(): Promise<Booking[]> {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('notification_settings')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (!error && data?.notification_settings?.synced_bookings && Array.isArray(data.notification_settings.synced_bookings)) {
+      return data.notification_settings.synced_bookings as Booking[];
+    }
+  } catch {}
+
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/admin/bookings/sync', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.bookings)) {
+          return json.bookings as Booking[];
+        }
+      }
+    } catch {}
+  }
+
+  return [];
+}
+
+function updateBookingInLocalStorage(bookingId: string, updater: (b: Booking) => Booking): Booking | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored: Booking[] = JSON.parse(localStorage.getItem('autospa_customer_bookings') || '[]');
+    const idx = stored.findIndex((b) => b.id === bookingId);
+    if (idx !== -1) {
+      const updated = updater({ ...stored[idx], updated_at: new Date().toISOString() });
+      stored[idx] = updated;
+      localStorage.setItem('autospa_customer_bookings', JSON.stringify(stored));
+      return updated;
+    }
+  } catch (err) {
+    console.warn('Error updating booking in localStorage:', err);
+  }
+  return null;
+}
+
+function upsertBookingInLocalStorage(booking: Booking) {
+  if (typeof window === 'undefined') return;
+  try {
+    const stored: Booking[] = JSON.parse(localStorage.getItem('autospa_customer_bookings') || '[]');
+    const filtered = stored.filter((b) => b.id !== booking.id && (!booking.code || b.code !== booking.code));
+    filtered.unshift(booking);
+    localStorage.setItem('autospa_customer_bookings', JSON.stringify(filtered));
+  } catch (err) {
+    console.warn('Error upserting booking in localStorage:', err);
+  }
+}
+
 export async function fetchBookings(options?: { customerId?: string; technicianId?: string; status?: BookingStatus }): Promise<Booking[]> {
   try {
     const bookingsMap = new Map<string, Booking>();
@@ -554,26 +621,55 @@ export async function fetchBookings(options?: { customerId?: string; technicianI
       console.warn('Supabase fetchBookings warning:', sErr);
     }
 
-    // 2. Cargar reservas guardadas localmente (para órdenes directas, demo o sin sesión RLS)
+    // 2. Consultar reservas sincronizadas en la nube (multi-dispositivo / fallback de RLS)
+    try {
+      const cloudSynced = await fetchCloudSyncedBookings();
+      cloudSynced.forEach((b: Booking) => {
+        if (!b || !b.id) return;
+        if (b.status === 'cancelled' && b.notes && b.notes.includes('ORDEN_ELIMINADA_POR_ADMIN')) {
+          bookingsMap.delete(b.id);
+          return;
+        }
+        const merged = pickNewerBooking(bookingsMap.get(b.id), b);
+        if (options?.customerId && merged.customer_id !== options.customerId) {
+          bookingsMap.delete(b.id);
+          return;
+        }
+        if (options?.technicianId && merged.assigned_technician_id !== options.technicianId) {
+          bookingsMap.delete(b.id);
+          return;
+        }
+        if (options?.status && merged.status !== options.status) {
+          bookingsMap.delete(b.id);
+          return;
+        }
+        bookingsMap.set(b.id, merged);
+      });
+    } catch (cErr) {
+      console.warn('Cloud synced bookings warning:', cErr);
+    }
+
+    // 3. Cargar reservas guardadas localmente (para órdenes directas, demo o sin sesión RLS)
     if (typeof window !== 'undefined') {
       try {
         const stored = JSON.parse(localStorage.getItem('autospa_customer_bookings') || '[]');
         stored.forEach((b: Booking) => {
+          if (!b || !b.id) return;
           if (b.status === 'cancelled' && b.notes && b.notes.includes('ORDEN_ELIMINADA_POR_ADMIN')) {
+            bookingsMap.delete(b.id);
             return;
           }
-          if (options?.customerId && b.customer_id !== options.customerId) {
+          const merged = pickNewerBooking(bookingsMap.get(b.id), b);
+          if (options?.customerId && merged.customer_id !== options.customerId) {
             return;
           }
-          if (options?.technicianId && b.assigned_technician_id !== options.technicianId) {
+          if (options?.technicianId && merged.assigned_technician_id !== options.technicianId) {
             return;
           }
-          if (options?.status && b.status !== options.status) {
+          if (options?.status && merged.status !== options.status) {
             return;
           }
-          if (!bookingsMap.has(b.id)) {
-            bookingsMap.set(b.id, b);
-          }
+          bookingsMap.set(b.id, merged);
         });
       } catch (err) {
         console.warn('Error reading stored bookings:', err);
@@ -619,6 +715,7 @@ export async function fetchBookingById(id: string): Promise<Booking | null> {
   try {
     let b: Booking | null = null;
 
+    // 1. Consultar directamente a Supabase
     try {
       const { data, error } = await supabase
         .from('bookings')
@@ -631,12 +728,22 @@ export async function fetchBookingById(id: string): Promise<Booking | null> {
       }
     } catch {}
 
-    if (!b && typeof window !== 'undefined') {
+    // 2. Combinar con estado en la nube (synced_bookings)
+    try {
+      const cloudSynced = await fetchCloudSyncedBookings();
+      const cloudFound = cloudSynced.find((item: Booking) => item.id === id);
+      if (cloudFound) {
+        b = pickNewerBooking(b || undefined, cloudFound);
+      }
+    } catch {}
+
+    // 3. Combinar con caché local
+    if (typeof window !== 'undefined') {
       try {
         const stored = JSON.parse(localStorage.getItem('autospa_customer_bookings') || '[]');
         const found = stored.find((item: Booking) => item.id === id);
         if (found) {
-          b = found;
+          b = pickNewerBooking(b || undefined, found);
         }
       } catch {}
     }
@@ -781,13 +888,14 @@ export async function insertBooking(
     }
   }
 
-  // 4. Disparar broadcasts en tiempo real
-  sendRealtimeBroadcast('admin-dashboard-realtime', 'new_booking', { code: newBooking.code, id: newBooking.id });
-  sendRealtimeBroadcast('admin-orders-realtime', 'new_booking', { code: newBooking.code, id: newBooking.id });
+  // 4. Sincronizar en la nube y disparar broadcasts en tiempo real
+  await syncBookingToCloud('upsert', newBooking);
+  dispatchLocalBookingEvents();
+  sendRealtimeBroadcast('admin-dashboard-realtime', 'new_booking', { code: newBooking.code, id: newBooking.id, bookingId: newBooking.id });
+  sendRealtimeBroadcast('admin-orders-realtime', 'new_booking', { code: newBooking.code, id: newBooking.id, bookingId: newBooking.id });
   sendRealtimeBroadcast('client-reservations-list-realtime', 'client_booking_updated', { bookingId: newBooking.id, status: newBooking.status, code: newBooking.code, customerId: newBooking.customer_id });
   sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', { bookingId: newBooking.id, status: newBooking.status, code: newBooking.code, customerId: newBooking.customer_id });
   sendRealtimeBroadcast('client-reservations-list-realtime', 'new_booking', { bookingId: newBooking.id, status: newBooking.status, code: newBooking.code, customerId: newBooking.customer_id });
-  syncBookingToCloud('upsert', newBooking);
   if (newBooking.assigned_technician_id) {
     sendRealtimeBroadcast('tech-assignments-realtime', 'tech_assigned', { bookingId: newBooking.id, technicianId: newBooking.assigned_technician_id, code: newBooking.code });
     sendRealtimeBroadcast('tech-current-realtime', 'tech_assigned', { bookingId: newBooking.id, technicianId: newBooking.assigned_technician_id, code: newBooking.code });
@@ -797,7 +905,7 @@ export async function insertBooking(
 }
 
 
-async function syncBookingToCloud(action: 'upsert' | 'delete' | 'update_status' | 'reschedule', booking?: any, bookingId?: string) {
+async function syncBookingToCloud(action: 'upsert' | 'delete' | 'update_status' | 'assign_tech' | 'reschedule' | 'report_payment', booking?: any, bookingId?: string) {
   try {
     await fetch('/api/admin/bookings/sync', {
       method: 'POST',
@@ -842,6 +950,15 @@ function sendRealtimeBroadcast(topic: string, event: string, payload: any) {
   }
 }
 
+function dispatchLocalBookingEvents() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('autospa_bookings_updated'));
+  window.dispatchEvent(new Event('autospa_bookings_updated'));
+  window.dispatchEvent(new Event('autospa_booking_updated'));
+  window.dispatchEvent(new Event('autospa_payments_updated'));
+  window.dispatchEvent(new Event('autospa_notifications_feed_updated'));
+}
+
 export async function updateBookingStatus(
   bookingId: string,
   newStatus: BookingStatus,
@@ -849,35 +966,69 @@ export async function updateBookingStatus(
   changedBy?: string
 ): Promise<boolean> {
   try {
-    const { data: updatedBooking, error: updateErr } = await supabase
-      .from('bookings')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', bookingId)
-      .select('code, customer_id, assigned_technician_id')
-      .single();
+    const existingBooking = await fetchBookingById(bookingId);
+    const nowIso = new Date().toISOString();
 
-    if (updateErr) throw updateErr;
+    let updatedBooking: any = null;
+    try {
+      const { data, error: updateErr } = await supabase
+        .from('bookings')
+        .update({ status: newStatus, updated_at: nowIso })
+        .eq('id', bookingId)
+        .select('code, customer_id, assigned_technician_id')
+        .maybeSingle();
 
-    const bookingCode = updatedBooking?.code || `BK-${bookingId.slice(-4)}`;
-    const customerId = updatedBooking?.customer_id;
-    const technicianId = updatedBooking?.assigned_technician_id;
-
-    await supabase.from('booking_status_history').insert([{
-      booking_id: bookingId,
-      to_status: newStatus,
-      notes: notes || `Cambio de estado a ${newStatus}`,
-      changed_by: changedBy,
-    }]);
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('autospa_bookings_updated'));
+      if (!updateErr && data) {
+        updatedBooking = data;
+      }
+    } catch (sErr) {
+      console.warn('Supabase updateBookingStatus fallback notice:', sErr);
     }
 
-    // Broadcasts seguros
-    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', { bookingId, status: newStatus, code: bookingCode, customerId });
-    sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', { bookingId, status: newStatus, code: bookingCode, customerId, notes });
-    sendRealtimeBroadcast('tech-assignments-realtime', 'tech_order_updated', { bookingId, status: newStatus, code: bookingCode, technicianId });
-    syncBookingToCloud('update_status', { status: newStatus, notes }, bookingId);
+    const bookingCode = updatedBooking?.code || existingBooking?.code || `BK-${bookingId.slice(-4)}`;
+    const customerId = updatedBooking?.customer_id || existingBooking?.customer_id;
+    const technicianId = updatedBooking?.assigned_technician_id || existingBooking?.assigned_technician_id;
+
+    try {
+      await supabase.from('booking_status_history').insert([{
+        booking_id: bookingId,
+        to_status: newStatus,
+        notes: notes || `Cambio de estado a ${newStatus}`,
+        changed_by: changedBy,
+      }]);
+    } catch {}
+
+    // Actualizar en localStorage
+    const localUpdated = updateBookingInLocalStorage(bookingId, (b) => ({
+      ...b,
+      status: newStatus,
+      updated_at: nowIso,
+    }));
+    if (!localUpdated && existingBooking) {
+      upsertBookingInLocalStorage({
+        ...existingBooking,
+        status: newStatus,
+        updated_at: nowIso,
+      });
+    }
+
+    // Sincronizar a la nube primero
+    await syncBookingToCloud('update_status', {
+      ...(existingBooking || {}),
+      status: newStatus,
+      updated_at: nowIso,
+    }, bookingId);
+
+    dispatchLocalBookingEvents();
+
+    const payload = { bookingId, status: newStatus, code: bookingCode, customerId, technicianId, notes };
+    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', payload);
+    sendRealtimeBroadcast('admin-orders-realtime', 'booking_updated', payload);
+    sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', payload);
+    sendRealtimeBroadcast('client-reservations-list-realtime', 'client_booking_updated', payload);
+    sendRealtimeBroadcast(`client-booking-${bookingId}-realtime`, 'client_booking_updated', payload);
+    sendRealtimeBroadcast('tech-assignments-realtime', 'tech_order_updated', payload);
+    sendRealtimeBroadcast('tech-current-realtime', 'tech_order_updated', payload);
 
     return true;
   } catch (err) {
@@ -897,6 +1048,10 @@ export async function rescheduleBooking(
     const oldDate = b?.scheduled_date || '';
     const oldSlot = b?.scheduled_time_slot || '';
     const currentStatus = b?.status || 'confirmed';
+    const bookingCode = b?.code || `BK-${bookingId.slice(-4)}`;
+    const customerId = b?.customer_id;
+    const technicianId = b?.assigned_technician_id;
+    const nowIso = new Date().toISOString();
 
     // Limpiar notas previas de reprogramación y añadir nota informativa
     const cleanNotes = (b?.notes || '').replace(/\[REPROGRAMADA:[\s\S]*?\]/g, '').trim();
@@ -904,59 +1059,83 @@ export async function rescheduleBooking(
       ? `${cleanNotes}\n[REPROGRAMADA: de ${oldDate} (${oldSlot}) a ${newDate} (${newTimeSlot})]`
       : `[REPROGRAMADA: de ${oldDate} (${oldSlot}) a ${newDate} (${newTimeSlot})]`;
 
-    const { error } = await supabase
-      .from('bookings')
-      .update({
-        scheduled_date: newDate,
-        scheduled_time_slot: newTimeSlot,
-        notes: updatedNotes,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', bookingId);
-
-    if (error) throw error;
-
-    await supabase.from('booking_status_history').insert([{
-      booking_id: bookingId,
-      to_status: currentStatus,
-      notes: `Reserva reprogramada de ${oldDate} (${oldSlot}) para ${newDate} (${newTimeSlot})`,
-      changed_by: changedBy,
-    }]);
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('autospa_booking_updated'));
-      window.dispatchEvent(new CustomEvent('autospa_booking_rescheduled', {
-        detail: {
-          booking_id: bookingId,
-          code: b?.code || `BK-${bookingId.slice(-4)}`,
-          old_date: oldDate,
-          old_slot: oldSlot,
-          new_date: newDate,
-          new_slot: newTimeSlot,
-          technician_id: b?.assigned_technician_id,
-        }
-      }));
+    try {
+      await supabase
+        .from('bookings')
+        .update({
+          scheduled_date: newDate,
+          scheduled_time_slot: newTimeSlot,
+          notes: updatedNotes,
+          updated_at: nowIso,
+        })
+        .eq('id', bookingId);
+    } catch (sErr) {
+      console.warn('Supabase rescheduleBooking fallback notice:', sErr);
     }
 
     try {
-      const channel = supabase.channel('admin-dashboard-realtime');
-      await channel.send({
-        type: 'broadcast',
-        event: 'booking_rescheduled',
-        payload: {
-          booking_id: bookingId,
-          code: b?.code || `BK-${bookingId.slice(-4)}`,
-          old_date: oldDate,
-          old_slot: oldSlot,
-          new_date: newDate,
-          new_slot: newTimeSlot,
-          technician_id: b?.assigned_technician_id,
-        }
-      });
+      await supabase.from('booking_status_history').insert([{
+        booking_id: bookingId,
+        to_status: currentStatus,
+        notes: `Reserva reprogramada de ${oldDate} (${oldSlot}) para ${newDate} (${newTimeSlot})`,
+        changed_by: changedBy,
+      }]);
     } catch {}
 
-    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', { bookingId, date: newDate });
-    syncBookingToCloud('reschedule', { scheduled_date: newDate, scheduled_time_slot: newTimeSlot, notes: updatedNotes }, bookingId);
+    // Actualizar en localStorage
+    const localUpdated = updateBookingInLocalStorage(bookingId, (item) => ({
+      ...item,
+      scheduled_date: newDate,
+      scheduled_time_slot: newTimeSlot,
+      notes: updatedNotes,
+      updated_at: nowIso,
+    }));
+    if (!localUpdated && b) {
+      upsertBookingInLocalStorage({
+        ...b,
+        scheduled_date: newDate,
+        scheduled_time_slot: newTimeSlot,
+        notes: updatedNotes,
+        updated_at: nowIso,
+      });
+    }
+
+    await syncBookingToCloud('reschedule', {
+      ...(b || {}),
+      scheduled_date: newDate,
+      scheduled_time_slot: newTimeSlot,
+      notes: updatedNotes,
+      updated_at: nowIso,
+    }, bookingId);
+
+    const reschedDetail = {
+      booking_id: bookingId,
+      bookingId,
+      code: bookingCode,
+      old_date: oldDate,
+      old_slot: oldSlot,
+      new_date: newDate,
+      new_slot: newTimeSlot,
+      customerId,
+      technician_id: technicianId,
+      technicianId,
+      status: currentStatus,
+    };
+
+    if (typeof window !== 'undefined') {
+      dispatchLocalBookingEvents();
+      window.dispatchEvent(new CustomEvent('autospa_booking_rescheduled', { detail: reschedDetail }));
+    }
+
+    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_rescheduled', reschedDetail);
+    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', reschedDetail);
+    sendRealtimeBroadcast('admin-orders-realtime', 'booking_updated', reschedDetail);
+    sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', reschedDetail);
+    sendRealtimeBroadcast('client-reservations-list-realtime', 'client_booking_updated', reschedDetail);
+    sendRealtimeBroadcast(`client-booking-${bookingId}-realtime`, 'client_booking_updated', reschedDetail);
+    sendRealtimeBroadcast('tech-assignments-realtime', 'booking_rescheduled', reschedDetail);
+    sendRealtimeBroadcast('tech-assignments-realtime', 'tech_order_updated', reschedDetail);
+    sendRealtimeBroadcast('tech-current-realtime', 'tech_order_updated', reschedDetail);
 
     return true;
   } catch (err) {
@@ -1042,37 +1221,74 @@ export async function assignBookingTechnician(
   changedBy?: string
 ): Promise<boolean> {
   try {
-    const { data: updatedBooking, error: updateErr } = await supabase
-      .from('bookings')
-      .update({
-        assigned_technician_id: technicianId,
-        status: 'assigned',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', bookingId)
-      .select('code, customer_id')
-      .single();
+    const existingBooking = await fetchBookingById(bookingId);
+    const nowIso = new Date().toISOString();
 
-    if (updateErr) throw updateErr;
+    let updatedBooking: any = null;
+    try {
+      const { data, error: updateErr } = await supabase
+        .from('bookings')
+        .update({
+          assigned_technician_id: technicianId,
+          status: 'assigned',
+          updated_at: nowIso,
+        })
+        .eq('id', bookingId)
+        .select('code, customer_id')
+        .maybeSingle();
 
-    const bookingCode = updatedBooking?.code || `BK-${bookingId.slice(-4)}`;
-    const customerId = updatedBooking?.customer_id;
-
-    await supabase.from('booking_status_history').insert([{
-      booking_id: bookingId,
-      to_status: 'assigned',
-      notes: 'Técnico asignado a la reserva',
-      changed_by: changedBy,
-    }]);
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('autospa_bookings_updated'));
+      if (!updateErr && data) {
+        updatedBooking = data;
+      }
+    } catch (sErr) {
+      console.warn('Supabase assignBookingTechnician fallback notice:', sErr);
     }
 
-    // Notificar en tiempo real al técnico asignado, admin y cliente
-    sendRealtimeBroadcast('tech-assignments-realtime', 'tech_assigned', { bookingId, technicianId, code: bookingCode });
-    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', { bookingId, status: 'assigned', technicianId, code: bookingCode });
-    sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', { bookingId, status: 'assigned', code: bookingCode, customerId });
+    const bookingCode = updatedBooking?.code || existingBooking?.code || `BK-${bookingId.slice(-4)}`;
+    const customerId = updatedBooking?.customer_id || existingBooking?.customer_id;
+
+    try {
+      await supabase.from('booking_status_history').insert([{
+        booking_id: bookingId,
+        to_status: 'assigned',
+        notes: 'Técnico asignado a la reserva',
+        changed_by: changedBy,
+      }]);
+    } catch {}
+
+    // Actualizar en localStorage
+    const localUpdated = updateBookingInLocalStorage(bookingId, (b) => ({
+      ...b,
+      assigned_technician_id: technicianId,
+      status: 'assigned',
+      updated_at: nowIso,
+    }));
+    if (!localUpdated && existingBooking) {
+      upsertBookingInLocalStorage({
+        ...existingBooking,
+        assigned_technician_id: technicianId,
+        status: 'assigned',
+        updated_at: nowIso,
+      });
+    }
+
+    await syncBookingToCloud('assign_tech', {
+      ...(existingBooking || {}),
+      assigned_technician_id: technicianId,
+      status: 'assigned',
+      updated_at: nowIso,
+    }, bookingId);
+
+    dispatchLocalBookingEvents();
+
+    const payload = { bookingId, status: 'assigned', technicianId, code: bookingCode, customerId };
+    sendRealtimeBroadcast('tech-assignments-realtime', 'tech_assigned', payload);
+    sendRealtimeBroadcast('tech-current-realtime', 'tech_assigned', payload);
+    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', payload);
+    sendRealtimeBroadcast('admin-orders-realtime', 'booking_updated', payload);
+    sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', payload);
+    sendRealtimeBroadcast('client-reservations-list-realtime', 'client_booking_updated', payload);
+    sendRealtimeBroadcast(`client-booking-${bookingId}-realtime`, 'client_booking_updated', payload);
 
     return true;
   } catch (err) {
@@ -1138,20 +1354,17 @@ export async function deleteBooking(bookingId: string): Promise<boolean> {
       console.warn('Server delete call warning:', apiErr);
     }
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('autospa_bookings_updated'));
-      window.dispatchEvent(new Event('autospa_booking_updated'));
-      window.dispatchEvent(new CustomEvent('autospa_bookings_updated'));
-    }
+    await syncBookingToCloud('delete', undefined, bookingId);
+    dispatchLocalBookingEvents();
 
     // 4. Enviar broadcasts en tiempo real a todos los canales
     sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', { bookingId, status: 'cancelled', code: bookingCode });
+    sendRealtimeBroadcast('admin-orders-realtime', 'booking_updated', { bookingId, status: 'cancelled', code: bookingCode });
     sendRealtimeBroadcast('client-reservations-list-realtime', 'client_booking_updated', { bookingId, status: 'cancelled', code: bookingCode, customerId });
     sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', { bookingId, status: 'cancelled', code: bookingCode, customerId });
     sendRealtimeBroadcast(`client-booking-${bookingId}-realtime`, 'client_booking_updated', { bookingId, status: 'cancelled', code: bookingCode, customerId });
     sendRealtimeBroadcast('tech-assignments-realtime', 'tech_order_updated', { bookingId, status: 'cancelled', code: bookingCode, technicianId });
     sendRealtimeBroadcast('tech-current-realtime', 'tech_order_updated', { bookingId, status: 'cancelled', code: bookingCode, technicianId });
-    syncBookingToCloud('delete', undefined, bookingId);
 
     return true;
   } catch (err) {
@@ -2008,9 +2221,10 @@ export async function reportBookingPayment(
     const b = await fetchBookingById(bookingId);
     if (!b) return false;
 
+    const nowIso = new Date().toISOString();
     const reportedPayment: ReportedPaymentData = {
       ...paymentData,
-      reported_at: new Date().toISOString(),
+      reported_at: nowIso,
     };
 
     // Clean existing payment tag if any, then append new tag
@@ -2020,17 +2234,38 @@ export async function reportBookingPayment(
       : `[PAGO_REPORTADO: ${JSON.stringify(reportedPayment)}]`;
 
     // Update in Supabase
-    const { error: updErr } = await supabase
-      .from('bookings')
-      .update({
-        notes: newNotes,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', bookingId);
-
-    if (updErr) {
+    try {
+      await supabase
+        .from('bookings')
+        .update({
+          notes: newNotes,
+          updated_at: nowIso,
+        })
+        .eq('id', bookingId);
+    } catch (updErr) {
       console.warn('Error updating booking payment in Supabase:', updErr);
     }
+
+    // Update in localStorage
+    const localUpdated = updateBookingInLocalStorage(bookingId, (item) => ({
+      ...item,
+      notes: newNotes,
+      updated_at: nowIso,
+    }));
+    if (!localUpdated) {
+      upsertBookingInLocalStorage({
+        ...b,
+        notes: newNotes,
+        updated_at: nowIso,
+      });
+    }
+
+    // Sync to cloud
+    await syncBookingToCloud('report_payment', {
+      ...b,
+      notes: newNotes,
+      updated_at: nowIso,
+    }, bookingId);
 
     // Fetch client to attach real name
     let clientName = 'Cliente';
@@ -2044,10 +2279,12 @@ export async function reportBookingPayment(
       }
     } catch {}
 
+    const bookingCode = b.code || `BK-${b.id.slice(-4)}`;
+
     // Insert payment record for cash control
     await insertPaymentRecord({
       booking_id: b.id,
-      booking_code: b.code || `BK-${b.id.slice(-4)}`,
+      booking_code: bookingCode,
       customer_name: clientName,
       customer_phone: clientPhone,
       service_name: 'Servicio AutoSpa',
@@ -2060,43 +2297,33 @@ export async function reportBookingPayment(
       notes: paymentData.notes || '',
     });
 
+    const paymentPayload = {
+      booking_id: b.id,
+      bookingId: b.id,
+      code: bookingCode,
+      customerId: b.customer_id,
+      customer_name: clientName,
+      amount_usd: paymentData.amount_usd || b.total_usd,
+      amount_ves: paymentData.amount_ves || b.total_ves,
+      method: paymentData.method,
+      reference: paymentData.reference,
+      bank: paymentData.bank,
+      status: b.status,
+    };
+
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('autospa_payments_updated'));
-      window.dispatchEvent(new Event('autospa_booking_updated'));
-      window.dispatchEvent(new CustomEvent('autospa_payment_reported', {
-        detail: {
-          booking_id: b.id,
-          code: b.code || `BK-${b.id.slice(-4)}`,
-          customer_name: clientName,
-          amount_usd: paymentData.amount_usd || b.total_usd,
-          amount_ves: paymentData.amount_ves || b.total_ves,
-          method: paymentData.method,
-          reference: paymentData.reference,
-          bank: paymentData.bank,
-        }
-      }));
+      dispatchLocalBookingEvents();
+      window.dispatchEvent(new CustomEvent('autospa_payment_reported', { detail: paymentPayload }));
     }
 
-    // Broadcast across Supabase channels to instantly notify admin
-    try {
-      const channel = supabase.channel('admin-dashboard-realtime');
-      await channel.send({
-        type: 'broadcast',
-        event: 'payment_reported',
-        payload: {
-          booking_id: b.id,
-          code: b.code || `BK-${b.id.slice(-4)}`,
-          customer_name: clientName,
-          amount_usd: paymentData.amount_usd || b.total_usd,
-          amount_ves: paymentData.amount_ves || b.total_ves,
-          method: paymentData.method,
-          reference: paymentData.reference,
-          bank: paymentData.bank,
-        }
-      });
-    } catch (bcErr) {
-      console.warn('Realtime broadcast warning:', bcErr);
-    }
+    // Broadcast across all channels via sendRealtimeBroadcast (guaranteed delivery across tabs and devices)
+    sendRealtimeBroadcast('admin-dashboard-realtime', 'payment_reported', paymentPayload);
+    sendRealtimeBroadcast('admin-dashboard-realtime', 'booking_updated', paymentPayload);
+    sendRealtimeBroadcast('admin-orders-realtime', 'payment_reported', paymentPayload);
+    sendRealtimeBroadcast('admin-orders-realtime', 'booking_updated', paymentPayload);
+    sendRealtimeBroadcast('client-bookings-realtime', 'client_booking_updated', paymentPayload);
+    sendRealtimeBroadcast('client-reservations-list-realtime', 'client_booking_updated', paymentPayload);
+    sendRealtimeBroadcast(`client-booking-${b.id}-realtime`, 'client_booking_updated', paymentPayload);
 
     return true;
   } catch (err) {

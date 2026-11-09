@@ -17,6 +17,7 @@ import {
   fetchNotificationSettings,
   updateNotificationSettings,
 } from "@/lib/supabase/api";
+import { createClient } from "@/lib/supabase/client";
 import { formatDateTime } from "@/lib/utils";
 import type { AppNotification, NotificationSettingsConfig, NotificationType } from "@/lib/types";
 import {
@@ -52,11 +53,44 @@ export default function NotificationsAdminPage() {
       loadData();
     };
 
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin-notifications-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bookings" },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
     window.addEventListener("autospa_notifications_feed_updated", handleUpdate);
     window.addEventListener("autospa_notifications_settings_updated", handleUpdate);
+    window.addEventListener("autospa_bookings_updated", handleUpdate);
+    window.addEventListener("autospa_booking_updated", handleUpdate);
+    window.addEventListener("autospa_payments_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("autospa_global_sync");
+      bc.onmessage = () => {
+        loadData();
+      };
+    } catch {}
+
     return () => {
+      supabase.removeChannel(channel);
       window.removeEventListener("autospa_notifications_feed_updated", handleUpdate);
       window.removeEventListener("autospa_notifications_settings_updated", handleUpdate);
+      window.removeEventListener("autospa_bookings_updated", handleUpdate);
+      window.removeEventListener("autospa_booking_updated", handleUpdate);
+      window.removeEventListener("autospa_payments_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

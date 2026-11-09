@@ -116,7 +116,7 @@ export default function AdminDashboardPage() {
         setAdminAlert({
           title: '¡Actualización de Sesión en Tiempo Real!',
           code,
-          message: `El técnico cambió el estado a: ${statusLabel}`,
+          message: `Estado actualizado en tiempo real: ${statusLabel}`,
           type: 'update',
         });
         showSystemNotification('¡Actualización de Sesión!', {
@@ -125,10 +125,113 @@ export default function AdminDashboardPage() {
         });
         setTimeout(() => setAdminAlert(null), 9000);
       })
+      .on('broadcast', { event: 'payment_reported' }, (payload: any) => {
+        fetchBookings().then(setBookings);
+        playAudioChime('prominent');
+        const code = payload.payload?.code || 'Orden';
+        const ref = payload.payload?.reference || '';
+        setAdminAlert({
+          title: '💰 ¡Pago Reportado en Tiempo Real!',
+          code,
+          message: `El cliente reportó pago${ref ? ` (Ref: ${ref})` : ''}. Listo para verificar.`,
+          type: 'new',
+        });
+        showSystemNotification('¡Pago Reportado por Cliente!', {
+          body: `Orden ${code}: Pago reportado${ref ? ` Ref: ${ref}` : ''}.`,
+          url: '/admin/payments',
+        });
+        setTimeout(() => setAdminAlert(null), 9000);
+      })
+      .on('broadcast', { event: 'booking_rescheduled' }, (payload: any) => {
+        fetchBookings().then(setBookings);
+        playAudioChime('prominent');
+        const code = payload.payload?.code || 'Orden';
+        const newDate = payload.payload?.new_date || '';
+        const newSlot = payload.payload?.new_slot || '';
+        setAdminAlert({
+          title: '📅 ¡Cita Reprogramada en Tiempo Real!',
+          code,
+          message: `Nuevo horario: ${newDate} (${formatTimeSlot(newSlot)})`,
+          type: 'update',
+        });
+        setTimeout(() => setAdminAlert(null), 9000);
+      })
       .subscribe();
+
+    const handleLocalRefresh = () => {
+      fetchBookings().then(setBookings);
+      fetchAdminClients().then(setClients);
+      fetchAdminTechnicians().then(setTechnicians);
+    };
+
+    const handlePaymentReportedLocal = (e: any) => {
+      fetchBookings().then(setBookings);
+      playAudioChime('prominent');
+      const detail = e?.detail || {};
+      const code = detail.code || 'Orden';
+      setAdminAlert({
+        title: '💰 ¡Pago Reportado en Tiempo Real!',
+        code,
+        message: `El cliente reportó pago${detail.reference ? ` (Ref: ${detail.reference})` : ''}.`,
+        type: 'new',
+      });
+      setTimeout(() => setAdminAlert(null), 9000);
+    };
+
+    window.addEventListener('autospa_bookings_updated', handleLocalRefresh);
+    window.addEventListener('autospa_booking_updated', handleLocalRefresh);
+    window.addEventListener('autospa_payments_updated', handleLocalRefresh);
+    window.addEventListener('autospa_payment_reported', handlePaymentReportedLocal);
+    window.addEventListener('storage', handleLocalRefresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('autospa_global_sync');
+      bc.onmessage = (event) => {
+        const { event: evName, payload } = event.data || {};
+        fetchBookings().then(setBookings);
+        if (evName === 'new_booking') {
+          playAudioChime('prominent');
+          setAdminAlert({
+            title: '¡Nueva Sesión Recibida en Tiempo Real!',
+            code: payload?.code || 'Nueva Reserva',
+            message: 'Un cliente acaba de agendar una nueva sesión.',
+            type: 'new',
+          });
+          setTimeout(() => setAdminAlert(null), 9000);
+        } else if (evName === 'payment_reported') {
+          playAudioChime('prominent');
+          setAdminAlert({
+            title: '💰 ¡Pago Reportado en Tiempo Real!',
+            code: payload?.code || 'Orden',
+            message: `El cliente reportó pago${payload?.reference ? ` (Ref: ${payload.reference})` : ''}.`,
+            type: 'new',
+          });
+          setTimeout(() => setAdminAlert(null), 9000);
+        } else if (evName === 'booking_updated' || evName === 'tech_order_updated') {
+          playAudioChime('subtle');
+          const statusLabel = payload?.status ? getStatusLabel(payload.status) : 'actualizada';
+          setAdminAlert({
+            title: '¡Actualización de Sesión en Tiempo Real!',
+            code: payload?.code || 'Orden',
+            message: `Estado actualizado a: ${statusLabel}`,
+            type: 'update',
+          });
+          setTimeout(() => setAdminAlert(null), 9000);
+        }
+      };
+    } catch {}
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('autospa_bookings_updated', handleLocalRefresh);
+      window.removeEventListener('autospa_booking_updated', handleLocalRefresh);
+      window.removeEventListener('autospa_payments_updated', handleLocalRefresh);
+      window.removeEventListener('autospa_payment_reported', handlePaymentReportedLocal);
+      window.removeEventListener('storage', handleLocalRefresh);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

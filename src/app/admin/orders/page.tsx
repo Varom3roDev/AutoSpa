@@ -133,10 +133,42 @@ export default function AdminOrdersPage() {
       .on('broadcast', { event: 'booking_updated' }, () => {
         fetchBookings().then(setBookings);
       })
+      .on('broadcast', { event: 'payment_reported' }, () => {
+        fetchBookings().then(setBookings);
+      })
+      .on('broadcast', { event: 'booking_rescheduled' }, () => {
+        fetchBookings().then(setBookings);
+      })
       .subscribe();
+
+    const handleLocalRefresh = () => {
+      fetchBookings().then(setBookings);
+      fetchAdminClients().then(setClients);
+      fetchAdminTechnicians().then(setTechnicians);
+    };
+
+    window.addEventListener('autospa_bookings_updated', handleLocalRefresh);
+    window.addEventListener('autospa_booking_updated', handleLocalRefresh);
+    window.addEventListener('autospa_payments_updated', handleLocalRefresh);
+    window.addEventListener('storage', handleLocalRefresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('autospa_global_sync');
+      bc.onmessage = () => {
+        handleLocalRefresh();
+      };
+    } catch {}
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('autospa_bookings_updated', handleLocalRefresh);
+      window.removeEventListener('autospa_booking_updated', handleLocalRefresh);
+      window.removeEventListener('autospa_payments_updated', handleLocalRefresh);
+      window.removeEventListener('storage', handleLocalRefresh);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

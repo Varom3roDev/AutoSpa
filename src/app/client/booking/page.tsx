@@ -169,8 +169,31 @@ export default function BookingPage() {
       }
     }
     loadSlotAvailability();
+
+    const handleSlotRefresh = () => {
+      loadSlotAvailability();
+    };
+
+    window.addEventListener("autospa_bookings_updated", handleSlotRefresh);
+    window.addEventListener("autospa_booking_updated", handleSlotRefresh);
+    window.addEventListener("storage", handleSlotRefresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("autospa_global_sync");
+      bc.onmessage = () => {
+        loadSlotAvailability();
+      };
+    } catch {}
+
     return () => {
       isMounted = false;
+      window.removeEventListener("autospa_bookings_updated", handleSlotRefresh);
+      window.removeEventListener("autospa_booking_updated", handleSlotRefresh);
+      window.removeEventListener("storage", handleSlotRefresh);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, [state.scheduledDate]);
 

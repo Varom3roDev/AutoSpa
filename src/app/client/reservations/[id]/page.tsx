@@ -216,8 +216,62 @@ export default function ClientReservationDetailPage() {
       })
       .subscribe();
 
+    const handleLocalRefresh = async () => {
+      const fresh = await fetchBookingById(id);
+      if (fresh) {
+        setBooking(fresh);
+      } else {
+        setBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
+      }
+    };
+
+    window.addEventListener('autospa_bookings_updated', handleLocalRefresh);
+    window.addEventListener('autospa_booking_updated', handleLocalRefresh);
+    window.addEventListener('autospa_payments_updated', handleLocalRefresh);
+    window.addEventListener('storage', handleLocalRefresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('autospa_global_sync');
+      bc.onmessage = async (event) => {
+        const { event: evName, payload } = event.data || {};
+        if (!payload?.bookingId || payload.bookingId === id || payload.booking_id === id) {
+          if (payload?.status === 'cancelled') {
+            setBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
+            setLiveAlert({
+              title: 'Orden Cancelada / Eliminada',
+              message: 'Esta reserva ha sido cancelada por el Administrador.',
+            });
+            return;
+          }
+          const fresh = await fetchBookingById(id);
+          if (fresh) {
+            setBooking(fresh);
+            playClientNotificationSound();
+            if (evName === 'booking_rescheduled') {
+              setLiveAlert({
+                title: '📅 ¡Cita Reprogramada!',
+                message: `Tu sesión ha sido reprogramada para el ${fresh.scheduled_date} (${fresh.scheduled_time_slot}).`,
+              });
+            } else {
+              const details = getStatusDetails(payload?.status || fresh.status);
+              setLiveAlert(details);
+            }
+            setTimeout(() => setLiveAlert(null), 10000);
+          }
+        }
+      };
+    } catch {}
+
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('autospa_bookings_updated', handleLocalRefresh);
+      window.removeEventListener('autospa_booking_updated', handleLocalRefresh);
+      window.removeEventListener('autospa_payments_updated', handleLocalRefresh);
+      window.removeEventListener('storage', handleLocalRefresh);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, [id, user?.id]);
 

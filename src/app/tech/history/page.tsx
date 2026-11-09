@@ -15,6 +15,7 @@ import {
   fetchCustomerAddresses,
   fetchAppSettings,
 } from "@/lib/supabase/api";
+import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, formatDateTime, formatTimeSlot } from "@/lib/utils";
 import type { Booking, Service, Customer, Vehicle, CustomerAddress, AppSettings } from "@/lib/types";
 import {
@@ -64,6 +65,44 @@ export default function TechnicianHistoryPage() {
       }
     }
     loadHistory();
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("tech-history-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bookings" },
+        () => {
+          loadHistory();
+        }
+      )
+      .subscribe();
+
+    const handleRefresh = () => {
+      loadHistory();
+    };
+
+    window.addEventListener("autospa_bookings_updated", handleRefresh);
+    window.addEventListener("autospa_booking_updated", handleRefresh);
+    window.addEventListener("storage", handleRefresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("autospa_global_sync");
+      bc.onmessage = () => {
+        loadHistory();
+      };
+    } catch {}
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener("autospa_bookings_updated", handleRefresh);
+      window.removeEventListener("autospa_booking_updated", handleRefresh);
+      window.removeEventListener("storage", handleRefresh);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+    };
   }, [user?.id]);
 
   const rate = settings?.bcv_exchange_rate || 36.5;

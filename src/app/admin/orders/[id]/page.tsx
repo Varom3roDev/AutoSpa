@@ -160,13 +160,16 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     setIsSubmittingReschedule(false);
   };
 
+  const [liveUpdateBanner, setLiveUpdateBanner] = useState<string | null>(null);
+
   useEffect(() => {
-    async function loadOrder() {
+    async function loadOrder(silent = false) {
       if (!id) return;
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       const bData = await fetchBookingById(id);
       if (!bData) {
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
+        setBooking(null);
         return;
       }
       setBooking(bData);
@@ -189,17 +192,74 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
 
       // Load vehicle and address
       if (bData.vehicle_id) {
-        const { data: vData } = await supabase.from('vehicles').select('*').eq('id', bData.vehicle_id).single();
+        const { data: vData } = await supabase.from('vehicles').select('*').eq('id', bData.vehicle_id).maybeSingle();
         if (vData) setVehicle(vData as Vehicle);
       }
       if (bData.address_id) {
-        const { data: aData } = await supabase.from('customer_addresses').select('*').eq('id', bData.address_id).single();
+        const { data: aData } = await supabase.from('customer_addresses').select('*').eq('id', bData.address_id).maybeSingle();
         if (aData) setAddress(aData as CustomerAddress);
       }
 
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-    loadOrder();
+    loadOrder(false);
+
+    // Suscripción en tiempo real para actualizar la orden al instante
+    const channelName = `admin-order-detail-${id}`;
+    const existing = supabase.getChannels().find((c: any) => c.topic === `realtime:${channelName}`);
+    if (existing) supabase.removeChannel(existing);
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings', filter: `id=eq.${id}` },
+        () => {
+          loadOrder(true);
+          playAudioChime('subtle');
+          setLiveUpdateBanner('Orden actualizada en tiempo real');
+          setTimeout(() => setLiveUpdateBanner(null), 6000);
+        }
+      )
+      .subscribe();
+
+    const handleRefresh = () => {
+      loadOrder(true);
+    };
+
+    window.addEventListener('autospa_bookings_updated', handleRefresh);
+    window.addEventListener('autospa_booking_updated', handleRefresh);
+    window.addEventListener('autospa_payments_updated', handleRefresh);
+    window.addEventListener('storage', handleRefresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('autospa_global_sync');
+      bc.onmessage = (event) => {
+        const { event: evName, payload } = event.data || {};
+        if (!payload?.bookingId || payload.bookingId === id || payload.booking_id === id) {
+          loadOrder(true);
+          playAudioChime('subtle');
+          if (evName === 'payment_reported') {
+            setLiveUpdateBanner('💰 ¡El cliente acaba de reportar el pago de esta orden!');
+          } else {
+            setLiveUpdateBanner('⚡ Estado de la orden actualizado en tiempo real');
+          }
+          setTimeout(() => setLiveUpdateBanner(null), 6000);
+        }
+      };
+    } catch {}
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('autospa_bookings_updated', handleRefresh);
+      window.removeEventListener('autospa_booking_updated', handleRefresh);
+      window.removeEventListener('autospa_payments_updated', handleRefresh);
+      window.removeEventListener('storage', handleRefresh);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+    };
   }, [id]);
 
   const handleUpdateStatus = async (newStatus: any) => {
@@ -276,6 +336,12 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       />
 
       <div className="p-4 space-y-4 max-w-3xl mx-auto w-full">
+        {liveUpdateBanner && (
+          <div className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-xs font-bold flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+            <span>{liveUpdateBanner}</span>
+            <button onClick={() => setLiveUpdateBanner(null)} className="text-[10px] underline ml-2 cursor-pointer">Cerrar</button>
+          </div>
+        )}
         {/* Alerta de Retraso Crítico si está Vencida */}
         {(() => {
           const timeStatus = getBookingTimeStatus(booking);

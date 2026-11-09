@@ -14,6 +14,7 @@ import {
   fetchAdminClients,
   fetchAdminTechnicians,
 } from "@/lib/supabase/api";
+import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, formatTimeSlot, getLocalDateString, getTimeSlotStartMinutes } from "@/lib/utils";
 import type { Booking, Service, Customer, User as UserType } from "@/lib/types";
 import {
@@ -69,6 +70,46 @@ export default function AdminAgendaPage() {
 
   useEffect(() => {
     loadAgendaData();
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin-agenda-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bookings" },
+        () => {
+          fetchBookings().then(setBookings);
+        }
+      )
+      .subscribe();
+
+    const handleRefresh = () => {
+      fetchBookings().then(setBookings);
+      fetchAdminClients().then(setClients);
+      fetchAdminTechnicians().then(setTechnicians);
+    };
+
+    window.addEventListener("autospa_bookings_updated", handleRefresh);
+    window.addEventListener("autospa_booking_updated", handleRefresh);
+    window.addEventListener("storage", handleRefresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("autospa_global_sync");
+      bc.onmessage = () => {
+        handleRefresh();
+      };
+    } catch {}
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener("autospa_bookings_updated", handleRefresh);
+      window.removeEventListener("autospa_booking_updated", handleRefresh);
+      window.removeEventListener("storage", handleRefresh);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+    };
   }, []);
 
   // Filter bookings for the selected date
